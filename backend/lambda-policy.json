@@ -1,0 +1,1 @@
+{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["dynamodb:*"],"Resource":"arn:aws:dynamodb:ap-south-1:908928711298:table/supply_*"},{"Effect":"Allow","Action":["logs:*"],"Resource":"*"}]}

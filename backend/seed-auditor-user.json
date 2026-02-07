@@ -1,0 +1,29 @@
+{
+    "id": {
+        "S": "AUD001"
+    },
+    "email": {
+        "S": "auditor@example.com"
+    },
+    "password_hash": {
+        "S": "ecd71870d1963316a97e3ac3408c9835ad8cf0f3c1bc703527c30265534f75ae"
+    },
+    "role": {
+        "S": "AUDITOR"
+    },
+    "name": {
+        "S": "Rajesh Kumar"
+    },
+    "auditor_id": {
+        "S": "AUD001"
+    },
+    "auditor_name": {
+        "S": "Rajesh Kumar"
+    },
+    "status": {
+        "S": "ACTIVE"
+    },
+    "created_at": {
+        "S": "2026-02-01T10:00:00.000Z"
+    }
+}

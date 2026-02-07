@@ -1,0 +1,20 @@
+{
+    "id": {
+        "S": "AUD001"
+    },
+    "name": {
+        "S": "Rajesh Kumar"
+    },
+    "email": {
+        "S": "hybs@kitchen.swap"
+    },
+    "phone": {
+        "S": "9876543210"
+    },
+    "status": {
+        "S": "ACTIVE"
+    },
+    "created_at": {
+        "S": "2026-02-01T10:00:00.000Z"
+    }
+}
