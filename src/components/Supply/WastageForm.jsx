@@ -56,6 +56,13 @@ export default function WastageForm({ items, onSubmit, loading, initialData = []
       return;
     }
 
+    // Validate that all items exist in the items list
+    const invalidItems = validRows.filter(r => !itemNames.includes(r.item));
+    if (invalidItems.length > 0) {
+      alert('Please select valid items from the dropdown. Invalid items detected.');
+      return;
+    }
+
     onSubmit({
       items: validRows.map(r => ({
         item_name: r.item,
@@ -77,7 +84,7 @@ export default function WastageForm({ items, onSubmit, loading, initialData = []
             <tr style={{ background: '#fef2f2' }}>
               <th style={thStyle}>Item</th>
               <th style={{ ...thStyle, width: 70 }}>Qty</th>
-              <th style={{ ...thStyle, width: 60 }}>UOM</th>
+              <th style={{ ...thStyle, width: 100 }}>UOM</th>
               <th style={{ ...thStyle, width: 90 }}>Price</th>
               <th style={{ ...thStyle, width: 90 }}>Total</th>
               <th style={{ ...thStyle, width: 120 }}>Reason</th>
@@ -150,22 +157,24 @@ export default function WastageForm({ items, onSubmit, loading, initialData = []
                   </select>
                 </td>
                 <td style={tdStyle}>
-                  <button
-                    type="button"
-                    onClick={() => removeRow(index)}
-                    style={{
-                      width: 28,
-                      height: 28,
-                      borderRadius: 6,
-                      border: 'none',
-                      background: '#fee2e2',
-                      color: '#dc2626',
-                      cursor: 'pointer',
-                      fontSize: 14
-                    }}
-                  >
-                    ✕
-                  </button>
+                  {index > 0 || rows.length > 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => removeRow(index)}
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: 6,
+                        border: 'none',
+                        background: '#fee2e2',
+                        color: '#dc2626',
+                        cursor: 'pointer',
+                        fontSize: 14
+                      }}
+                    >
+                      ✕
+                    </button>
+                  ) : null}
                 </td>
               </tr>
             ))}

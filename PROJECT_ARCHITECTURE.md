@@ -1,6 +1,6 @@
 # SWAP Management System - Architecture Documentation
 
-## 📋 Table of Contents
+## Table of Contents
 1. [Project Overview](#project-overview)
 2. [System Architecture](#system-architecture)
 3. [Entry & Exit Flow](#entry--exit-flow)
@@ -12,7 +12,7 @@
 
 ---
 
-## 🎯 Project Overview
+## Project Overview
 
 SWAP Management System is an internal supply chain management application designed to manage orders between franchises and kitchens. The system handles inventory, orders, discrepancies, daily reports, audits, staff management, and attendance tracking.
 
@@ -24,7 +24,7 @@ SWAP Management System is an internal supply chain management application design
 
 ---
 
-## 🏗 System Architecture
+## System Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -91,7 +91,7 @@ SWAP Management System is an internal supply chain management application design
 
 ---
 
-## 🔄 Entry & Exit Flow
+## Entry & Exit Flow
 
 ### **User Authentication Flow (Entry Point)**
 
@@ -208,7 +208,7 @@ User Clicks Logout
 
 ---
 
-## 🖥 Backend Systems
+## Backend Systems
 
 ### **DynamoDB Tables**
 
@@ -247,11 +247,11 @@ User Clicks Logout
 
 ---
 
-## 📡 API Reference
+## API Reference
 
 ### **Base URL**
 ```
-https://{api-id}.execute-api.ap-south-1.amazonaws.com
+https://vvyu6tokh6.execute-api.ap-south-1.amazonaws.com
 ```
 
 ### **Authentication Headers**
@@ -267,137 +267,137 @@ Content-Type: application/json
 
 | Method | Endpoint | Description | Request Body | Auth Required |
 |--------|----------|-------------|--------------|---------------|
-| `POST` | `/auth/login` | User login | `{ email, password }` | ❌ |
-| `GET` | `/auth/me` | Get current user | - | ✅ |
+| `POST` | `/auth/login` | User login | `{ email, password }` | No |
+| `GET` | `/auth/me` | Get current user | - | Yes |
 
 ### **Items APIs**
 
 | Method | Endpoint | Description | Request Body | Auth Required | Role |
 |--------|----------|-------------|--------------|---------------|------|
-| `GET` | `/items` | List all items | - | ✅ | All |
-| `POST` | `/items` | Create new item | `{ name, category, subcategory, defaultUom, standard_price }` | ✅ | Admin |
-| `PUT` | `/items/{id}` | Update item | `{ name?, category?, standard_price? }` | ✅ | Admin |
-| `DELETE` | `/items/{id}` | Delete item | - | ✅ | Admin |
+| `GET` | `/items` | List all items | - | Yes | All |
+| `POST` | `/items` | Create new item | `{ name, category, subcategory, defaultUom, standard_price }` | Yes | Admin |
+| `PUT` | `/items/{id}` | Update item | `{ name?, category?, standard_price? }` | Yes | Admin |
+| `DELETE` | `/items/{id}` | Delete item | - | Yes | Admin |
 
 ### **Orders APIs**
 
 | Method | Endpoint | Description | Request Body | Auth Required | Role |
 |--------|----------|-------------|--------------|---------------|------|
-| `GET` | `/orders` | List orders (filtered by role) | Query: `status`, `startDate`, `endDate`, `franchiseId` | ✅ | All |
-| `POST` | `/orders` | Create order | `{ items: [{ item_id, quantity, uom }], notes }` | ✅ | Franchise |
-| `GET` | `/orders/{id}` | Get order details | - | ✅ | All |
-| `PUT` | `/orders/{id}/accept` | Accept order | - | ✅ | Kitchen |
-| `PUT` | `/orders/{id}/dispatch` | Dispatch order | - | ✅ | Kitchen |
-| `PUT` | `/orders/{id}/receive` | Confirm receipt | `{ receivedItems: [{ orderItemId, receivedQty }] }` | ✅ | Franchise |
-| `GET` | `/orders/received-items` | Received items report | Query: `startDate`, `endDate`, `franchiseId` | ✅ | All |
+| `GET` | `/orders` | List orders (filtered by role) | Query: `status`, `startDate`, `endDate`, `franchiseId` | Yes | All |
+| `POST` | `/orders` | Create order | `{ items: [{ item_id, quantity, uom }], notes }` | Yes | Franchise |
+| `GET` | `/orders/{id}` | Get order details | - | Yes | All |
+| `PUT` | `/orders/{id}/accept` | Accept order | - | Yes | Kitchen |
+| `PUT` | `/orders/{id}/dispatch` | Dispatch order | - | Yes | Kitchen |
+| `PUT` | `/orders/{id}/receive` | Confirm receipt | `{ receivedItems: [{ orderItemId, receivedQty }] }` | Yes | Franchise |
+| `GET` | `/orders/received-items` | Received items report | Query: `startDate`, `endDate`, `franchiseId` | Yes | All |
 
 ### **Discrepancies APIs**
 
 | Method | Endpoint | Description | Request Body | Auth Required | Role |
 |--------|----------|-------------|--------------|---------------|------|
-| `GET` | `/discrepancies` | List discrepancies | Query: `resolved`, `order_id` | ✅ | Admin/Kitchen |
-| `POST` | `/discrepancies` | Report discrepancy | `{ order_id, item_id, expected_qty, received_qty, reason }` | ✅ | Franchise |
-| `PUT` | `/discrepancies/{id}/resolve` | Resolve discrepancy | `{ notes }` | ✅ | Admin |
+| `GET` | `/discrepancies` | List discrepancies | Query: `resolved`, `order_id` | Yes | Admin/Kitchen |
+| `POST` | `/discrepancies` | Report discrepancy | `{ order_id, item_id, expected_qty, received_qty, reason }` | Yes | Franchise |
+| `PUT` | `/discrepancies/{id}/resolve` | Resolve discrepancy | `{ notes }` | Yes | Admin |
 
 ### **Vendors APIs**
 
 | Method | Endpoint | Description | Request Body | Auth Required | Role |
 |--------|----------|-------------|--------------|---------------|------|
-| `GET` | `/vendors` | List vendors | - | ✅ | Admin |
-| `GET` | `/vendors/{id}` | Get vendor | - | ✅ | Admin |
-| `POST` | `/vendors` | Create vendor | `{ name, email, password, address, contact }` | ✅ | Admin |
-| `PUT` | `/vendors/{id}` | Update vendor | `{ name?, address?, contact? }` | ✅ | Admin |
-| `DELETE` | `/vendors/{id}` | Delete vendor | - | ✅ | Admin |
-| `PUT` | `/vendors/{id}/reset-password` | Reset password | `{ password }` | ✅ | Admin |
+| `GET` | `/vendors` | List vendors | - | Yes | Admin |
+| `GET` | `/vendors/{id}` | Get vendor | - | Yes | Admin |
+| `POST` | `/vendors` | Create vendor | `{ name, email, password, address, contact }` | Yes | Admin |
+| `PUT` | `/vendors/{id}` | Update vendor | `{ name?, address?, contact? }` | Yes | Admin |
+| `DELETE` | `/vendors/{id}` | Delete vendor | - | Yes | Admin |
+| `PUT` | `/vendors/{id}/reset-password` | Reset password | `{ password }` | Yes | Admin |
 
 ### **Franchises APIs**
 
 | Method | Endpoint | Description | Request Body | Auth Required | Role |
 |--------|----------|-------------|--------------|---------------|------|
-| `GET` | `/franchises` | List franchises | Query: `vendor_id` | ✅ | Admin |
-| `GET` | `/franchises/{id}` | Get franchise | - | ✅ | Admin |
-| `POST` | `/franchises` | Create franchise | `{ name, email, password, vendor_id, address, contact }` | ✅ | Admin |
-| `PUT` | `/franchises/{id}` | Update franchise | `{ name?, address?, contact? }` | ✅ | Admin |
-| `DELETE` | `/franchises/{id}` | Delete franchise | - | ✅ | Admin |
-| `PUT` | `/franchises/{id}/reset-password` | Reset password | `{ password }` | ✅ | Admin |
+| `GET` | `/franchises` | List franchises | Query: `vendor_id` | Yes | Admin |
+| `GET` | `/franchises/{id}` | Get franchise | - | Yes | Admin |
+| `POST` | `/franchises` | Create franchise | `{ name, email, password, vendor_id, address, contact }` | Yes | Admin |
+| `PUT` | `/franchises/{id}` | Update franchise | `{ name?, address?, contact? }` | Yes | Admin |
+| `DELETE` | `/franchises/{id}` | Delete franchise | - | Yes | Admin |
+| `PUT` | `/franchises/{id}/reset-password` | Reset password | `{ password }` | Yes | Admin |
 
 ### **Staff APIs**
 
 | Method | Endpoint | Description | Request Body | Auth Required | Role |
 |--------|----------|-------------|--------------|---------------|------|
-| `GET` | `/staff` | List staff | Query: `type`, `parentId`, `franchise_id`, `kitchen_id`, `all` | ✅ | Admin/Manager |
-| `GET` | `/staff/{id}` | Get staff | - | ✅ | Admin/Manager |
-| `POST` | `/staff` | Create staff | `{ name, email, password, role, franchise_id/kitchen_id }` | ✅ | Admin/Manager |
-| `PUT` | `/staff/{id}` | Update staff | `{ name?, contact? }` | ✅ | Admin/Manager |
-| `DELETE` | `/staff/{id}` | Delete staff | - | ✅ | Admin/Manager |
-| `PUT` | `/staff/{id}/reset-password` | Reset password | `{ password }` | ✅ | Admin/Manager |
+| `GET` | `/staff` | List staff | Query: `type`, `parentId`, `franchise_id`, `kitchen_id`, `all` | Yes | Admin/Manager |
+| `GET` | `/staff/{id}` | Get staff | - | Yes | Admin/Manager |
+| `POST` | `/staff` | Create staff | `{ name, email, password, role, franchise_id/kitchen_id }` | Yes | Admin/Manager |
+| `PUT` | `/staff/{id}` | Update staff | `{ name?, contact? }` | Yes | Admin/Manager |
+| `DELETE` | `/staff/{id}` | Delete staff | - | Yes | Admin/Manager |
+| `PUT` | `/staff/{id}/reset-password` | Reset password | `{ password }` | Yes | Admin/Manager |
 
 ### **Attendance APIs**
 
 | Method | Endpoint | Description | Request Body | Auth Required | Role |
 |--------|----------|-------------|--------------|---------------|------|
-| `GET` | `/attendance` | Get attendance records | Query: `staffId`, `franchiseId`, `date`, `startDate`, `endDate`, `all` | ✅ | All |
-| `GET` | `/attendance/today` | Today's attendance | - | ✅ | Staff |
-| `GET` | `/attendance/report` | Attendance report | Query: `type`, `date`, `franchiseId` | ✅ | Admin/Manager |
-| `POST` | `/attendance/checkin` | Check in | `{ selfie_photo, shoes_photo }` | ✅ | Staff |
-| `POST` | `/attendance/checkout` | Check out | - | ✅ | Staff |
+| `GET` | `/attendance` | Get attendance records | Query: `staffId`, `franchiseId`, `date`, `startDate`, `endDate`, `all` | Yes | All |
+| `GET` | `/attendance/today` | Today's attendance | - | Yes | Staff |
+| `GET` | `/attendance/report` | Attendance report | Query: `type`, `date`, `franchiseId` | Yes | Admin/Manager |
+| `POST` | `/attendance/checkin` | Check in | `{ selfie_photo, shoes_photo }` | Yes | Staff |
+| `POST` | `/attendance/checkout` | Check out | - | Yes | Staff |
 
 ### **Daily Reports APIs**
 
 | Method | Endpoint | Description | Request Body | Auth Required | Role |
 |--------|----------|-------------|--------------|---------------|------|
-| `GET` | `/daily-reports` | Get daily report | Query: `date`, `franchise_id` | ✅ | All |
-| `GET` | `/daily-reports/range` | Get reports range | Query: `start_date`, `end_date`, `franchise_id` | ✅ | Admin |
-| `POST` | `/daily-reports` | Save daily report | `{ date, franchise_id, closing?, wastage?, sales? }` | ✅ | Franchise |
-| `PUT` | `/daily-reports` | Update report | `{ date, franchise_id, updates }` | ✅ | Franchise |
+| `GET` | `/daily-reports` | Get daily report | Query: `date`, `franchise_id` | Yes | All |
+| `GET` | `/daily-reports/range` | Get reports range | Query: `start_date`, `end_date`, `franchise_id` | Yes | Admin |
+| `POST` | `/daily-reports` | Save daily report | `{ date, franchise_id, closing?, wastage?, sales? }` | Yes | Franchise |
+| `PUT` | `/daily-reports` | Update report | `{ date, franchise_id, updates }` | Yes | Franchise |
 
 ### **Audits APIs**
 
 | Method | Endpoint | Description | Request Body | Auth Required | Role |
 |--------|----------|-------------|--------------|---------------|------|
-| `GET` | `/audits` | List audits | Query: `franchise_id`, `auditor_id` | ✅ | Admin/Auditor |
-| `GET` | `/audits/{id}` | Get audit | - | ✅ | Admin/Auditor |
-| `POST` | `/audits` | Submit audit | `{ franchise_id, checklist, score, notes, photos }` | ✅ | Auditor |
-| `PUT` | `/audits/{id}` | Update audit | `{ status?, admin_notes? }` | ✅ | Admin |
-| `DELETE` | `/audits/{id}` | Delete audit | - | ✅ | Admin |
-| `GET` | `/auditors` | List auditors | - | ✅ | Admin |
-| `POST` | `/auditors` | Create auditor | `{ name, email, password }` | ✅ | Admin |
-| `PUT` | `/auditors/{id}` | Update auditor | `{ name?, contact? }` | ✅ | Admin |
-| `DELETE` | `/auditors/{id}` | Delete auditor | - | ✅ | Admin |
+| `GET` | `/audits` | List audits | Query: `franchise_id`, `auditor_id` | Yes | Admin/Auditor |
+| `GET` | `/audits/{id}` | Get audit | - | Yes | Admin/Auditor |
+| `POST` | `/audits` | Submit audit | `{ franchise_id, checklist, score, notes, photos }` | Yes | Auditor |
+| `PUT` | `/audits/{id}` | Update audit | `{ status?, admin_notes? }` | Yes | Admin |
+| `DELETE` | `/audits/{id}` | Delete audit | - | Yes | Admin |
+| `GET` | `/auditors` | List auditors | - | Yes | Admin |
+| `POST` | `/auditors` | Create auditor | `{ name, email, password }` | Yes | Admin |
+| `PUT` | `/auditors/{id}` | Update auditor | `{ name?, contact? }` | Yes | Admin |
+| `DELETE` | `/auditors/{id}` | Delete auditor | - | Yes | Admin |
 
 ### **Complaints APIs**
 
 | Method | Endpoint | Description | Request Body | Auth Required | Role |
 |--------|----------|-------------|--------------|---------------|------|
-| `GET` | `/complaints` | List complaints | Query: `franchise_id`, `vendor_id`, `status` | ✅ | All |
-| `GET` | `/complaints/{id}` | Get complaint | - | ✅ | All |
-| `POST` | `/complaints` | Create complaint | `{ order_id, type, description, photos? }` | ✅ | Franchise |
-| `PUT` | `/complaints/{id}` | Update complaint | `{ status, response }` | ✅ | Admin/Kitchen |
-| `DELETE` | `/complaints/{id}` | Delete complaint | - | ✅ | Admin |
+| `GET` | `/complaints` | List complaints | Query: `franchise_id`, `vendor_id`, `status` | Yes | All |
+| `GET` | `/complaints/{id}` | Get complaint | - | Yes | All |
+| `POST` | `/complaints` | Create complaint | `{ order_id, type, description, photos? }` | Yes | Franchise |
+| `PUT` | `/complaints/{id}` | Update complaint | `{ status, response }` | Yes | Admin/Kitchen |
+| `DELETE` | `/complaints/{id}` | Delete complaint | - | Yes | Admin |
 
 ### **Notifications APIs**
 
 | Method | Endpoint | Description | Request Body | Auth Required | Role |
 |--------|----------|-------------|--------------|---------------|------|
-| `GET` | `/notifications` | Get notifications | Query: `limit`, `unread` | ✅ | All |
-| `PUT` | `/notifications/{id}/read` | Mark as read | - | ✅ | All |
-| `PUT` | `/notifications/read-all` | Mark all read | - | ✅ | All |
-| `DELETE` | `/notifications/{id}` | Delete notification | - | ✅ | All |
+| `GET` | `/notifications` | Get notifications | Query: `limit`, `unread` | Yes | All |
+| `PUT` | `/notifications/{id}/read` | Mark as read | - | Yes | All |
+| `PUT` | `/notifications/read-all` | Mark all read | - | Yes | All |
+| `DELETE` | `/notifications/{id}` | Delete notification | - | Yes | All |
 
 ---
 
-## ✅ RESTful API Design
+## RESTful API Design
 
 **Yes, the APIs follow RESTful principles:**
 
 | Principle | Implementation |
 |-----------|----------------|
-| **Resource-based URLs** | ✅ `/orders`, `/items`, `/users` |
-| **HTTP Methods** | ✅ GET (read), POST (create), PUT (update), DELETE (remove) |
-| **Stateless** | ✅ Each request contains JWT token for authentication |
-| **Standard HTTP Status Codes** | ✅ 200 (OK), 201 (Created), 400 (Bad Request), 401 (Unauthorized), 404 (Not Found), 500 (Server Error) |
-| **JSON Content Type** | ✅ All requests/responses use `application/json` |
-| **CORS Support** | ✅ API Gateway configured for all origins |
+| **Resource-based URLs** | Yes - `/orders`, `/items`, `/users` |
+| **HTTP Methods** | Yes - GET (read), POST (create), PUT (update), DELETE (remove) |
+| **Stateless** | Yes - Each request contains JWT token for authentication |
+| **Standard HTTP Status Codes** | Yes - 200 (OK), 201 (Created), 400 (Bad Request), 401 (Unauthorized), 404 (Not Found), 500 (Server Error) |
+| **JSON Content Type** | Yes - All requests/responses use `application/json` |
+| **CORS Support** | Yes - API Gateway configured for all origins |
 
 ### **HTTP Methods Used**
 
@@ -411,7 +411,7 @@ Content-Type: application/json
 
 ---
 
-## 🧪 Sample Test Data
+## Sample Test Data
 
 ### **Pre-seeded Test Users**
 
@@ -442,20 +442,20 @@ cd backend
 
 #### 1. Login
 ```bash
-curl -X POST https://{api-url}/auth/login \
+curl -X POST https://vvyu6tokh6.execute-api.ap-south-1.amazonaws.com/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email": "admin@swap.com", "password": "admin123"}'
 ```
 
 #### 2. Get Items
 ```bash
-curl -X GET https://{api-url}/items \
+curl -X GET https://vvyu6tokh6.execute-api.ap-south-1.amazonaws.com/items \
   -H "Authorization: Bearer <token>"
 ```
 
 #### 3. Create Order
 ```bash
-curl -X POST https://{api-url}/orders \
+curl -X POST https://vvyu6tokh6.execute-api.ap-south-1.amazonaws.com/orders \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
   -d '{
@@ -469,13 +469,13 @@ curl -X POST https://{api-url}/orders \
 
 #### 4. Accept Order (Kitchen)
 ```bash
-curl -X PUT https://{api-url}/orders/{orderId}/accept \
+curl -X PUT https://vvyu6tokh6.execute-api.ap-south-1.amazonaws.com/orders/{orderId}/accept \
   -H "Authorization: Bearer <token>"
 ```
 
 ---
 
-## 📁 Git Repository
+## Git Repository
 
 ### **Repository URL**
 ```
@@ -546,7 +546,7 @@ npm run dev
 
 ---
 
-## 📊 Quick Reference
+## Quick Reference
 
 | Resource | Type | Location |
 |----------|------|----------|

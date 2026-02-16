@@ -164,6 +164,89 @@ export default function AllOrders() {
               </div>
             )}
 
+            {/* Dispatch Photos Section */}
+            {selectedOrder.dispatch_photos && selectedOrder.dispatch_photos.length > 0 && (
+              <div style={{
+                background: '#eff6ff',
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 16
+              }}>
+                <h4 style={{ fontSize: 14, fontWeight: 600, color: '#1e40af', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="1" y="3" width="15" height="13" rx="2" />
+                    <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
+                    <circle cx="5.5" cy="18.5" r="2.5" />
+                    <circle cx="18.5" cy="18.5" r="2.5" />
+                  </svg>
+                  Dispatch Photos (from Kitchen)
+                </h4>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {selectedOrder.dispatch_photos.map((photo, idx) => (
+                    <img
+                      key={idx}
+                      src={photo}
+                      alt={`Dispatch ${idx + 1}`}
+                      onClick={() => window.open(photo, '_blank')}
+                      style={{
+                        width: 100,
+                        height: 100,
+                        objectFit: 'cover',
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        border: '2px solid #93c5fd'
+                      }}
+                    />
+                  ))}
+                </div>
+                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}>
+                  Dispatched: {formatDateTime(selectedOrder.dispatched_at)}
+                  {selectedOrder.dispatched_by_name && ` by ${selectedOrder.dispatched_by_name}`}
+                </div>
+              </div>
+            )}
+
+            {/* Receipt/Accept Photos Section */}
+            {selectedOrder.receive_photos && selectedOrder.receive_photos.length > 0 && (
+              <div style={{
+                background: '#f0fdf4',
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 16
+              }}>
+                <h4 style={{ fontSize: 14, fontWeight: 600, color: '#166534', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <circle cx="8.5" cy="8.5" r="1.5" />
+                    <polyline points="21 15 16 10 5 21" />
+                  </svg>
+                  Receipt Photos (from Franchise)
+                </h4>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {selectedOrder.receive_photos.map((photo, idx) => (
+                    <img
+                      key={idx}
+                      src={photo}
+                      alt={`Receipt ${idx + 1}`}
+                      onClick={() => window.open(photo, '_blank')}
+                      style={{
+                        width: 100,
+                        height: 100,
+                        objectFit: 'cover',
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        border: '2px solid #86efac'
+                      }}
+                    />
+                  ))}
+                </div>
+                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}>
+                  Received: {formatDateTime(selectedOrder.received_at)}
+                  {selectedOrder.received_by_name && ` by ${selectedOrder.received_by_name}`}
+                </div>
+              </div>
+            )}
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
               <div style={{ fontSize: 18, fontWeight: 700 }}>
                 Total: {formatCurrency(selectedOrder.total_amount)}
@@ -188,9 +271,9 @@ export default function AllOrders() {
                   }}
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                    <line x1="12" y1="9" x2="12" y2="13"/>
-                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                    <line x1="12" y1="9" x2="12" y2="13" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
                   </svg>
                   Raise Complaint
                 </button>

@@ -6,6 +6,62 @@ import orderService from '../../services/orderService';
 import OrderComplaintModal from '../../components/Supply/OrderComplaintModal';
 import { useAuth } from '../../context/AuthContext';
 
+// Photo Gallery Component for displaying order photos
+function PhotoGallery({ photos, title }) {
+  const [viewingPhoto, setViewingPhoto] = useState(null);
+
+  if (!photos || photos.length === 0) return null;
+
+  return (
+    <div style={{ marginTop: 16 }}>
+      <h4 style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 8 }}>
+        📷 {title}
+      </h4>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        {photos.map((photo, idx) => (
+          <img
+            key={idx}
+            src={photo}
+            alt={`${title} ${idx + 1}`}
+            onClick={() => setViewingPhoto(photo)}
+            style={{
+              width: 80,
+              height: 80,
+              objectFit: 'cover',
+              borderRadius: 8,
+              cursor: 'pointer',
+              border: '2px solid #e5e7eb'
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Full-size photo modal */}
+      {viewingPhoto && (
+        <div
+          onClick={() => setViewingPhoto(null)}
+          style={{
+            position: 'fixed',
+            top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.9)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000,
+            cursor: 'pointer'
+          }}
+        >
+          <img
+            src={viewingPhoto}
+            alt="Full size"
+            style={{ maxWidth: '90%', maxHeight: '90%', borderRadius: 8 }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * Franchise Order History - View all orders
  */
@@ -151,6 +207,44 @@ export default function OrderHistory() {
                 <TimelineStep label="Received" done={order.status === 'RECEIVED'} />
               </div>
 
+              {/* Dispatch Photos - Show when dispatched or received */}
+              {(order.status === 'DISPATCHED' || order.status === 'RECEIVED') && order.dispatch_photos && order.dispatch_photos.length > 0 && (
+                <div style={{
+                  background: '#f0fdf4',
+                  borderRadius: 10,
+                  padding: 12,
+                  marginBottom: 12
+                }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#166534', marginBottom: 8 }}>
+                    🚚 Dispatch Photos from Kitchen
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {order.dispatch_photos.map((photo, idx) => (
+                      <img
+                        key={idx}
+                        src={photo}
+                        alt={`Dispatch ${idx + 1}`}
+                        onClick={() => setSelectedOrder({ ...order, viewingPhoto: photo })}
+                        style={{
+                          width: 60,
+                          height: 60,
+                          objectFit: 'cover',
+                          borderRadius: 8,
+                          cursor: 'pointer',
+                          border: '2px solid #86efac'
+                        }}
+                      />
+                    ))}
+                  </div>
+                  {order.dispatched_at && (
+                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 6 }}>
+                      Dispatched: {formatDateTime(order.dispatched_at)}
+                      {order.dispatched_by_name && ` by ${order.dispatched_by_name}`}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Actions */}
               <div style={{ display: 'flex', gap: 12 }}>
                 <button
@@ -219,6 +313,42 @@ export default function OrderHistory() {
               </div>
             )}
 
+            {/* Dispatch Photos Section */}
+            {selectedOrder.dispatch_photos && selectedOrder.dispatch_photos.length > 0 && (
+              <div style={{
+                background: '#f0fdf4',
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 20
+              }}>
+                <h4 style={{ fontSize: 14, fontWeight: 600, color: '#166534', marginBottom: 12 }}>
+                  🚚 Dispatch Photos
+                </h4>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {selectedOrder.dispatch_photos.map((photo, idx) => (
+                    <img
+                      key={idx}
+                      src={photo}
+                      alt={`Dispatch ${idx + 1}`}
+                      onClick={() => window.open(photo, '_blank')}
+                      style={{
+                        width: 100,
+                        height: 100,
+                        objectFit: 'cover',
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        border: '2px solid #86efac'
+                      }}
+                    />
+                  ))}
+                </div>
+                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}>
+                  Dispatched: {formatDateTime(selectedOrder.dispatched_at)}
+                  {selectedOrder.dispatched_by_name && ` by ${selectedOrder.dispatched_by_name}`}
+                </div>
+              </div>
+            )}
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
               <div style={{ fontSize: 18, fontWeight: 700 }}>
                 Total: {formatCurrency(selectedOrder.total_amount)}
@@ -243,9 +373,9 @@ export default function OrderHistory() {
                   }}
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                    <line x1="12" y1="9" x2="12" y2="13"/>
-                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                    <line x1="12" y1="9" x2="12" y2="13" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
                   </svg>
                   Raise Complaint
                 </button>
@@ -266,6 +396,7 @@ export default function OrderHistory() {
         user={user}
         onSuccess={() => {
           setSelectedOrder(null);
+          fetchOrders();
           alert('Complaint submitted successfully!');
         }}
       />

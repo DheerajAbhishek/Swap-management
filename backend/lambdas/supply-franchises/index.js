@@ -18,14 +18,28 @@ function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
 }
 
-// Generate username from name (e.g., "Downtown Franchise" -> "downtownfranchise")
-function generateUsername(name) {
-  return name.toLowerCase().replace(/[^a-z0-9]/g, '') + '@franchise.swap';
-}
+// Generate strong random password
+function generateStrongPassword(length = 12) {
+  const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+  const numbers = '0123456789';
+  const symbols = '!@#$%&*';
+  const all = uppercase + lowercase + numbers + symbols;
 
-// Generate password from name (e.g., "Downtown Franchise" -> "downtownfranchise123")
-function generatePassword(name) {
-  return name.toLowerCase().replace(/[^a-z0-9]/g, '') + '123';
+  // Ensure at least one of each type
+  let password = '';
+  password += uppercase[Math.floor(Math.random() * uppercase.length)];
+  password += lowercase[Math.floor(Math.random() * lowercase.length)];
+  password += numbers[Math.floor(Math.random() * numbers.length)];
+  password += symbols[Math.floor(Math.random() * symbols.length)];
+
+  // Fill the rest randomly
+  for (let i = 4; i < length; i++) {
+    password += all[Math.floor(Math.random() * all.length)];
+  }
+
+  // Shuffle the password
+  return password.split('').sort(() => Math.random() - 0.5).join('');
 }
 
 // CORS headers
@@ -62,6 +76,12 @@ exports.handler = async (event) => {
     // Route handling
     if (method === 'GET') {
       const franchiseId = pathParts[1];
+      const subResource = pathParts[2];
+
+      // Get franchise items
+      if (franchiseId && subResource === 'items') {
+        return await getFranchiseItems(franchiseId);
+      }
 
       // Vendors can see their assigned franchises
       if (decoded.role === 'KITCHEN') {
@@ -81,8 +101,14 @@ exports.handler = async (event) => {
       }
 
       // Franchise can only see their own
-      if (decoded.role === 'FRANCHISE') {
-        return await getFranchise(decoded.franchise_id);
+      if (decoded.role === 'FRANCHISE' || decoded.role === 'FRANCHISE_STAFF') {
+        const targetFranchiseId = decoded.franchise_id;
+        if (subResource === 'items' || franchiseId === targetFranchiseId) {
+          if (pathParts[2] === 'items' || !franchiseId) {
+            return await getFranchiseItems(targetFranchiseId);
+          }
+          return await getFranchise(targetFranchiseId);
+        }
       }
 
       return { statusCode: 403, headers, body: JSON.stringify({ error: 'Access denied' }) };
@@ -94,17 +120,32 @@ exports.handler = async (event) => {
     }
 
     if (method === 'POST') {
+      const franchiseId = pathParts[1];
+      const subResource = pathParts[2];
       const body = JSON.parse(event.body || '{}');
+
+      // Add item to franchise
+      if (franchiseId && subResource === 'items') {
+        return await addFranchiseItem(franchiseId, body);
+      }
+
       return await createFranchise(body);
     }
 
     if (method === 'PUT') {
       const franchiseId = pathParts[1];
+      const subResource = pathParts[2];
+      const itemId = pathParts[3];
       const body = JSON.parse(event.body || '{}');
 
       // Check if this is a password reset request
-      if (pathParts[2] === 'reset-password') {
+      if (subResource === 'reset-password') {
         return await resetPassword(franchiseId, body);
+      }
+
+      // Update franchise item
+      if (subResource === 'items' && itemId) {
+        return await updateFranchiseItem(franchiseId, itemId, body);
       }
 
       return await updateFranchise(franchiseId, body);
@@ -112,6 +153,14 @@ exports.handler = async (event) => {
 
     if (method === 'DELETE') {
       const franchiseId = pathParts[1];
+      const subResource = pathParts[2];
+      const itemId = pathParts[3];
+
+      // Delete franchise item
+      if (subResource === 'items' && itemId) {
+        return await deleteFranchiseItem(franchiseId, itemId);
+      }
+
       return await deleteFranchise(franchiseId);
     }
 
@@ -177,6 +226,10 @@ async function getFranchise(franchiseId) {
 
 // Create franchise
 async function createFranchise(data) {
+  if (!data.email) {
+    throw new Error('Email is required');
+  }
+
   const franchiseId = `franchise-${Date.now()}`;
   const franchise = {
     id: franchiseId,
@@ -184,7 +237,7 @@ async function createFranchise(data) {
     owner_name: data.owner_name || '',
     location: data.location || '',
     phone: data.phone || '',
-    email: data.email || '',
+    email: data.email,
     vendor_id: data.vendor_id || '', // Assigned vendor/kitchen
     vendor_name: data.vendor_name || '',
     royalty_percent: data.royalty_percent || 5,
@@ -193,14 +246,13 @@ async function createFranchise(data) {
     updated_at: new Date().toISOString()
   };
 
-  // Generate login credentials
-  const username = generateUsername(data.name);
-  const password = generatePassword(data.name);
+  // Use provided password or generate a strong one
+  const password = data.password || generateStrongPassword(12);
 
-  // Create user account for this franchise
+  // Create user account for this franchise using their email
   const user = {
     id: franchiseId, // Same ID as franchise
-    email: username, // Generated username as email
+    email: data.email, // Use the user-provided email
     password: hashPassword(password),
     name: data.name,
     role: 'FRANCHISE',
@@ -222,14 +274,14 @@ async function createFranchise(data) {
     Item: user
   }));
 
-  // Return franchise with generated credentials
+  // Return franchise with credentials (email as username)
   return {
     statusCode: 201,
     headers,
     body: JSON.stringify({
       ...franchise,
       credentials: {
-        username: username,
+        username: data.email,
         password: password
       }
     })
@@ -271,7 +323,7 @@ async function updateFranchise(franchiseId, data) {
       const userUpdateExpressions = [];
       const userAttributeNames = {};
       const userAttributeValues = {};
-      
+
       if (data.vendor_id !== undefined) {
         userUpdateExpressions.push('#vendor_id = :vendor_id');
         userAttributeNames['#vendor_id'] = 'vendor_id';
@@ -282,7 +334,7 @@ async function updateFranchise(franchiseId, data) {
         userAttributeNames['#vendor_name'] = 'vendor_name';
         userAttributeValues[':vendor_name'] = data.vendor_name;
       }
-      
+
       if (userUpdateExpressions.length > 0) {
         await dynamoDB.send(new UpdateCommand({
           TableName: USERS_TABLE,
@@ -349,5 +401,160 @@ async function resetPassword(franchiseId, data) {
     statusCode: 200,
     headers,
     body: JSON.stringify({ message: 'Password reset successfully' })
+  };
+}
+
+// ============ FRANCHISE ITEM MANAGEMENT ============
+
+// Get franchise items
+async function getFranchiseItems(franchiseId) {
+  const result = await dynamoDB.send(new GetCommand({
+    TableName: TABLE_NAME,
+    Key: { id: franchiseId }
+  }));
+
+  if (!result.Item) {
+    return { statusCode: 404, headers, body: JSON.stringify({ error: 'Franchise not found' }) };
+  }
+
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify(result.Item.items || [])
+  };
+}
+
+// Add item to franchise
+async function addFranchiseItem(franchiseId, itemData) {
+  // First get current franchise
+  const getResult = await dynamoDB.send(new GetCommand({
+    TableName: TABLE_NAME,
+    Key: { id: franchiseId }
+  }));
+
+  if (!getResult.Item) {
+    return { statusCode: 404, headers, body: JSON.stringify({ error: 'Franchise not found' }) };
+  }
+
+  const items = getResult.Item.items || [];
+  const newItem = {
+    id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    name: itemData.name,
+    category: itemData.category || '',
+    unit: itemData.unit || 'kg',
+    price: parseFloat(itemData.price) || 0,
+    created_at: new Date().toISOString()
+  };
+
+  items.push(newItem);
+
+  // Update franchise with new items array
+  await dynamoDB.send(new UpdateCommand({
+    TableName: TABLE_NAME,
+    Key: { id: franchiseId },
+    UpdateExpression: 'SET #items = :items, #updated_at = :updated_at',
+    ExpressionAttributeNames: {
+      '#items': 'items',
+      '#updated_at': 'updated_at'
+    },
+    ExpressionAttributeValues: {
+      ':items': items,
+      ':updated_at': new Date().toISOString()
+    }
+  }));
+
+  return {
+    statusCode: 201,
+    headers,
+    body: JSON.stringify(newItem)
+  };
+}
+
+// Update franchise item
+async function updateFranchiseItem(franchiseId, itemId, itemData) {
+  // Get current franchise
+  const getResult = await dynamoDB.send(new GetCommand({
+    TableName: TABLE_NAME,
+    Key: { id: franchiseId }
+  }));
+
+  if (!getResult.Item) {
+    return { statusCode: 404, headers, body: JSON.stringify({ error: 'Franchise not found' }) };
+  }
+
+  const items = getResult.Item.items || [];
+  const itemIndex = items.findIndex(item => item.id === itemId);
+
+  if (itemIndex === -1) {
+    return { statusCode: 404, headers, body: JSON.stringify({ error: 'Item not found' }) };
+  }
+
+  // Update item fields
+  if (itemData.name !== undefined) items[itemIndex].name = itemData.name;
+  if (itemData.category !== undefined) items[itemIndex].category = itemData.category;
+  if (itemData.unit !== undefined) items[itemIndex].unit = itemData.unit;
+  if (itemData.price !== undefined) items[itemIndex].price = parseFloat(itemData.price) || 0;
+  items[itemIndex].updated_at = new Date().toISOString();
+
+  // Update franchise
+  await dynamoDB.send(new UpdateCommand({
+    TableName: TABLE_NAME,
+    Key: { id: franchiseId },
+    UpdateExpression: 'SET #items = :items, #updated_at = :updated_at',
+    ExpressionAttributeNames: {
+      '#items': 'items',
+      '#updated_at': 'updated_at'
+    },
+    ExpressionAttributeValues: {
+      ':items': items,
+      ':updated_at': new Date().toISOString()
+    }
+  }));
+
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify(items[itemIndex])
+  };
+}
+
+// Delete franchise item
+async function deleteFranchiseItem(franchiseId, itemId) {
+  // Get current franchise
+  const getResult = await dynamoDB.send(new GetCommand({
+    TableName: TABLE_NAME,
+    Key: { id: franchiseId }
+  }));
+
+  if (!getResult.Item) {
+    return { statusCode: 404, headers, body: JSON.stringify({ error: 'Franchise not found' }) };
+  }
+
+  const items = getResult.Item.items || [];
+  const filteredItems = items.filter(item => item.id !== itemId);
+
+  if (filteredItems.length === items.length) {
+    return { statusCode: 404, headers, body: JSON.stringify({ error: 'Item not found' }) };
+  }
+
+  // Update franchise
+  await dynamoDB.send(new UpdateCommand({
+    TableName: TABLE_NAME,
+    Key: { id: franchiseId },
+    UpdateExpression: 'SET #items = :items, #updated_at = :updated_at',
+    ExpressionAttributeNames: {
+      '#items': 'items',
+      '#updated_at': 'updated_at'
+    },
+    ExpressionAttributeValues: {
+      ':items': filteredItems,
+      ':updated_at': new Date().toISOString()
+    }
+  }));
+
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify({ message: 'Item deleted' })
   };
 }

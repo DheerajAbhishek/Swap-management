@@ -8,26 +8,31 @@ export const complaintService = {
   async getComplaints(filters = {}) {
     const params = new URLSearchParams(filters).toString();
     const url = params ? `/complaints?${params}` : '/complaints';
-    return api.get(url);
+    const response = await api.get(url);
+    return Array.isArray(response.data) ? response.data : [];
   },
 
   // Get single complaint
   async getComplaint(id) {
-    return api.get(`/complaints/${id}`);
+    const response = await api.get(`/complaints/${id}`);
+    return response.data;
   },
 
   // Create new complaint (franchise only)
   async createComplaint(data) {
-    return api.post('/complaints', data);
+    const response = await api.post('/complaints', data);
+    return response.data;
   },
 
   // Update complaint status/response (admin/kitchen)
   async updateComplaint(id, data) {
-    return api.put(`/complaints/${id}`, data);
+    const response = await api.put(`/complaints/${id}`, data);
+    return response.data;
   },
 
   // Delete complaint (admin only)
   async deleteComplaint(id) {
-    return api.delete(`/complaints/${id}`);
+    const response = await api.delete(`/complaints/${id}`);
+    return response.data;
   }
 };

@@ -6,6 +6,8 @@ import AdminManageItems from './pages/admin/ManageItems'
 import AdminAllOrders from './pages/admin/AllOrders'
 import AdminDiscrepancies from './pages/admin/Discrepancies'
 import AdminVendorManagement from './pages/admin/VendorManagement'
+import AdminVendorItems from './pages/admin/VendorItems'
+import AdminFranchiseItems from './pages/admin/FranchiseItems'
 import AdminFranchiseManagement from './pages/admin/FranchiseManagement'
 import AdminDailyReports from './pages/admin/DailyReports'
 import AdminViewComplaints from './pages/admin/ViewComplaints'
@@ -13,11 +15,16 @@ import AdminAuditorManagement from './pages/admin/AuditorManagement'
 import AdminViewAudits from './pages/admin/ViewAudits'
 import AdminStaffManagement from './pages/admin/StaffManagement'
 import AdminAttendanceView from './pages/admin/AttendanceView'
+import AdminFinance from './pages/admin/Finance'
+import AdminVendorLedger from './pages/admin/VendorLedger'
+import AdminPaymentHistory from './pages/admin/PaymentHistory'
 import KitchenDashboard from './pages/kitchen/Dashboard'
 import KitchenIncomingOrders from './pages/kitchen/IncomingOrders'
 import KitchenViewDiscrepancies from './pages/kitchen/ViewDiscrepancies'
 import KitchenViewComplaints from './pages/kitchen/ViewComplaints'
 import KitchenStaffManagement from './pages/kitchen/StaffManagement'
+import KitchenFinance from './pages/kitchen/Finance'
+import KitchenProfile from './pages/kitchen/Profile'
 import FranchiseDashboard from './pages/franchise/Dashboard'
 import FranchiseCreateOrder from './pages/franchise/CreateOrder'
 import FranchiseOrderHistory from './pages/franchise/OrderHistory'
@@ -34,6 +41,8 @@ import FranchiseStaffDashboard from './pages/franchise-staff/Dashboard'
 import FranchiseStaffAttendancePage from './pages/franchise-staff/Attendance'
 import FranchiseStaffCreateOrder from './pages/franchise-staff/CreateOrder'
 import FranchiseStaffOrderHistory from './pages/franchise-staff/OrderHistory'
+import FranchiseStaffConfirmReceipt from './pages/franchise-staff/ConfirmReceipt'
+import FranchiseStaffDailyEntry from './pages/franchise-staff/DailyEntry'
 // Kitchen Staff pages
 import KitchenStaffDashboard from './pages/kitchen-staff/Dashboard'
 import KitchenStaffIncomingOrders from './pages/kitchen-staff/IncomingOrders'
@@ -115,7 +124,9 @@ export default function App() {
         <Route path="items" element={<AdminManageItems />} />
         <Route path="orders" element={<AdminAllOrders />} />
         <Route path="vendors" element={<AdminVendorManagement />} />
+        <Route path="vendors/:vendorId/items" element={<AdminVendorItems />} />
         <Route path="franchises" element={<AdminFranchiseManagement />} />
+        <Route path="franchises/:franchiseId/items" element={<AdminFranchiseItems />} />
         <Route path="auditors" element={<AdminAuditorManagement />} />
         <Route path="audits" element={<AdminViewAudits />} />
         <Route path="daily-reports" element={<AdminDailyReports />} />
@@ -123,6 +134,9 @@ export default function App() {
         <Route path="complaints" element={<AdminViewComplaints />} />
         <Route path="staff" element={<AdminStaffManagement />} />
         <Route path="attendance" element={<AdminAttendanceView />} />
+        <Route path="finance" element={<AdminFinance />} />
+        <Route path="finance/vendor/:vendorId" element={<AdminVendorLedger />} />
+        <Route path="finance/payments" element={<AdminPaymentHistory />} />
       </Route>
 
       {/* Kitchen Routes */}
@@ -136,6 +150,8 @@ export default function App() {
         <Route path="discrepancies" element={<KitchenViewDiscrepancies />} />
         <Route path="complaints" element={<KitchenViewComplaints />} />
         <Route path="staff" element={<KitchenStaffManagement />} />
+        <Route path="finance" element={<KitchenFinance />} />
+        <Route path="profile" element={<KitchenProfile />} />
       </Route>
 
       {/* Franchise Routes */}
@@ -174,8 +190,10 @@ export default function App() {
       }>
         <Route index element={<FranchiseStaffDashboard />} />
         <Route path="attendance" element={<FranchiseStaffAttendancePage />} />
+        <Route path="daily-entry" element={<FranchiseStaffDailyEntry />} />
         <Route path="create-order" element={<FranchiseStaffCreateOrder />} />
         <Route path="orders" element={<FranchiseStaffOrderHistory />} />
+        <Route path="confirm-receipt/:orderId" element={<FranchiseStaffConfirmReceipt />} />
       </Route>
 
       {/* Kitchen Staff Routes */}

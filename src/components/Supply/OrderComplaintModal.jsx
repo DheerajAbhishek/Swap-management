@@ -1,16 +1,18 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { complaintService } from '../../services/complaintService';
+import photoService from '../../services/photoService';
+import PhotoCapture from '../PhotoCapture';
 
 /**
  * OrderComplaintModal - Modal to raise a complaint for a specific order
  * Includes camera/image upload functionality
  */
-export default function OrderComplaintModal({ 
-  isOpen, 
-  onClose, 
-  order, 
+export default function OrderComplaintModal({
+  isOpen,
+  onClose,
+  order,
   user,
-  onSuccess 
+  onSuccess
 }) {
   const [complaint, setComplaint] = useState({
     category: 'QUALITY',
@@ -18,11 +20,10 @@ export default function OrderComplaintModal({
     description: '',
     priority: 'MEDIUM'
   });
-  const [images, setImages] = useState([]);
+  const [photos, setPhotos] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
-  const fileInputRef = useRef(null);
-  const cameraInputRef = useRef(null);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth <= 768);
@@ -39,40 +40,11 @@ export default function OrderComplaintModal({
         description: '',
         priority: 'MEDIUM'
       });
-      setImages([]);
+      setPhotos([]);
     }
   }, [isOpen]);
 
   if (!isOpen || !order) return null;
-
-  const handleImageUpload = (e) => {
-    const files = Array.from(e.target.files);
-    if (files.length + images.length > 5) {
-      alert('Maximum 5 images allowed');
-      return;
-    }
-
-    files.forEach(file => {
-      if (file.size > 5 * 1024 * 1024) {
-        alert('Each image must be less than 5MB');
-        return;
-      }
-
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImages(prev => [...prev, {
-          name: file.name,
-          data: reader.result,
-          type: file.type
-        }]);
-      };
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const removeImage = (index) => {
-    setImages(prev => prev.filter((_, i) => i !== index));
-  };
 
   const handleSubmit = async () => {
     if (!complaint.subject.trim()) {
@@ -86,6 +58,19 @@ export default function OrderComplaintModal({
 
     setSubmitting(true);
     try {
+      // Upload photos to S3 first
+      let photoUrls = [];
+      if (photos.length > 0) {
+        setUploadingPhotos(true);
+        try {
+          photoUrls = await photoService.uploadPhotos(photos, 'complaints');
+        } catch (err) {
+          console.error('Failed to upload photos:', err);
+          // Continue without photos if upload fails
+        }
+        setUploadingPhotos(false);
+      }
+
       const complaintData = {
         category: complaint.category,
         subject: complaint.subject,
@@ -95,15 +80,16 @@ export default function OrderComplaintModal({
         order_number: order.order_number,
         vendor_id: order.vendor_id || '',
         vendor_name: order.vendor_name || 'Kitchen',
-        attachments: images.map(img => ({
-          name: img.name,
-          data: img.data,
-          type: img.type
+        photos: photoUrls,
+        attachments: photos.map(p => ({
+          name: p.name,
+          url: photoUrls[photos.indexOf(p)] || p.data,
+          type: p.type
         }))
       };
 
       await complaintService.createComplaint(complaintData);
-      
+
       if (onSuccess) {
         onSuccess();
       }
@@ -114,6 +100,7 @@ export default function OrderComplaintModal({
       alert('Failed to submit complaint: ' + err.message);
     } finally {
       setSubmitting(false);
+      setUploadingPhotos(false);
     }
   };
 
@@ -221,10 +208,10 @@ export default function OrderComplaintModal({
             <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, fontSize: 14, color: '#374151' }}>
               Issue Category *
             </label>
-            <div style={{ 
-              display: 'grid', 
-              gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)', 
-              gap: 8 
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(3, 1fr)',
+              gap: 8
             }}>
               {categories.map(cat => (
                 <button
@@ -324,141 +311,14 @@ export default function OrderComplaintModal({
             />
           </div>
 
-          {/* Image Upload Section */}
-          <div style={{ marginBottom: 20 }}>
-            <label style={{ display: 'block', marginBottom: 8, fontWeight: 600, fontSize: 14, color: '#374151' }}>
-              Attach Photos (Optional)
-            </label>
-            <p style={{ fontSize: 12, color: '#6b7280', marginBottom: 12 }}>
-              Add up to 5 photos as evidence. Max 5MB each.
-            </p>
-            
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-              {/* Camera Button - Mobile */}
-              <button
-                type="button"
-                onClick={() => cameraInputRef.current?.click()}
-                style={{
-                  padding: '12px 16px',
-                  borderRadius: 10,
-                  border: '2px dashed #d1d5db',
-                  background: 'white',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  color: '#6b7280',
-                  fontSize: 14
-                }}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
-                  <circle cx="12" cy="13" r="4"></circle>
-                </svg>
-                Take Photo
-              </button>
-              
-              {/* Gallery Button */}
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                style={{
-                  padding: '12px 16px',
-                  borderRadius: 10,
-                  border: '2px dashed #d1d5db',
-                  background: 'white',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  color: '#6b7280',
-                  fontSize: 14
-                }}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                  <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                  <polyline points="21 15 16 10 5 21"></polyline>
-                </svg>
-                Choose File
-              </button>
-            </div>
-
-            {/* Hidden File Inputs */}
-            <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={handleImageUpload}
-              style={{ display: 'none' }}
-            />
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={handleImageUpload}
-              style={{ display: 'none' }}
-            />
-
-            {/* Image Previews */}
-            {images.length > 0 && (
-              <div style={{ 
-                display: 'grid', 
-                gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', 
-                gap: 8 
-              }}>
-                {images.map((img, index) => (
-                  <div 
-                    key={index} 
-                    style={{ 
-                      position: 'relative',
-                      paddingTop: '100%',
-                      borderRadius: 8,
-                      overflow: 'hidden',
-                      border: '1px solid #e5e7eb'
-                    }}
-                  >
-                    <img
-                      src={img.data}
-                      alt={`Attachment ${index + 1}`}
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover'
-                      }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeImage(index)}
-                      style={{
-                        position: 'absolute',
-                        top: 4,
-                        right: 4,
-                        width: 24,
-                        height: 24,
-                        borderRadius: '50%',
-                        border: 'none',
-                        background: 'rgba(0,0,0,0.6)',
-                        color: 'white',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 14
-                      }}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          {/* Photo Upload Section */}
+          <PhotoCapture
+            photos={photos}
+            onChange={setPhotos}
+            maxPhotos={5}
+            label="Attach Photos (Optional)"
+            disabled={submitting}
+          />
         </div>
 
         {/* Footer Actions */}
@@ -487,7 +347,7 @@ export default function OrderComplaintModal({
               cursor: submitting ? 'not-allowed' : 'pointer'
             }}
           >
-            {submitting ? 'Submitting...' : 'Submit Complaint'}
+            {submitting ? (uploadingPhotos ? 'Uploading Photos...' : 'Submitting...') : 'Submit Complaint'}
           </button>
           <button
             onClick={onClose}

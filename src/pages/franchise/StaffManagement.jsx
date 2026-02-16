@@ -5,51 +5,60 @@ import ToastNotification from '../../components/ToastNotification';
 
 /**
  * Franchise Staff Management
- * Allows franchise owner to manage their staff members
+ * Allows franchise owner to manage their staff members AND managers
  * View attendance and scores
  */
 export default function FranchiseStaffManagement() {
   const { user } = useAuth();
   const [staff, setStaff] = useState([]);
+  const [managers, setManagers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingStaff, setEditingStaff] = useState(null);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+  const [activeTab, setActiveTab] = useState('staff'); // 'staff' or 'managers'
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
     password: '',
-    address: ''
+    address: '',
+    role: 'FRANCHISE_STAFF' // or 'FRANCHISE' for manager
   });
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    fetchStaff();
+    fetchData();
   }, []);
 
-  const fetchStaff = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const data = await staffService.getStaff();
-      setStaff(data);
+      const [staffData, managersData] = await Promise.all([
+        staffService.getStaff({ type: 'FRANCHISE_STAFF', parentId: user.franchise_id }),
+        staffService.getManagers('FRANCHISE')
+      ]);
+      setStaff(staffData);
+      // Filter managers for this franchise only
+      setManagers(managersData.filter(m => m.franchise_id === user.franchise_id));
     } catch (err) {
-      console.error('Failed to fetch staff:', err);
-      setToast({ show: true, message: 'Failed to load staff', type: 'error' });
+      console.error('Failed to fetch data:', err);
+      setToast({ show: true, message: 'Failed to load data', type: 'error' });
     } finally {
       setLoading(false);
     }
   };
 
-  const handleOpenModal = (staffMember = null) => {
+  const handleOpenModal = (staffMember = null, isManager = false) => {
     if (staffMember) {
       setEditingStaff(staffMember);
       setFormData({
         name: staffMember.name || '',
         email: staffMember.email || '',
         phone: staffMember.phone || '',
-        password: '', // Don't populate password
-        address: staffMember.address || ''
+        password: '',
+        address: staffMember.address || '',
+        role: isManager ? 'FRANCHISE' : 'FRANCHISE_STAFF'
       });
     } else {
       setEditingStaff(null);
@@ -58,7 +67,8 @@ export default function FranchiseStaffManagement() {
         email: '',
         phone: '',
         password: '',
-        address: ''
+        address: '',
+        role: activeTab === 'managers' ? 'FRANCHISE' : 'FRANCHISE_STAFF'
       });
     }
     setShowModal(true);
@@ -72,7 +82,8 @@ export default function FranchiseStaffManagement() {
       email: '',
       phone: '',
       password: '',
-      address: ''
+      address: '',
+      role: 'FRANCHISE_STAFF'
     });
   };
 
@@ -82,40 +93,59 @@ export default function FranchiseStaffManagement() {
 
     try {
       if (editingStaff) {
-        // Update existing staff
-        const updateData = { ...formData };
-        if (!updateData.password) delete updateData.password;
-        await staffService.updateStaff(editingStaff.id, updateData);
-        setToast({ show: true, message: 'Staff updated successfully!', type: 'success' });
+        // Update existing (only staff, managers cannot be edited)
+        if (formData.role === 'FRANCHISE_STAFF') {
+          const updateData = { ...formData };
+          if (!updateData.password) delete updateData.password;
+          await staffService.updateStaff(editingStaff.id, updateData);
+          setToast({ show: true, message: 'Staff updated successfully!', type: 'success' });
+        }
       } else {
-        // Create new staff
-        await staffService.createStaff({
-          ...formData,
-          role: 'FRANCHISE_STAFF',
-          franchise_id: user.franchise_id
-        });
-        setToast({ show: true, message: 'Staff created successfully!', type: 'success' });
+        // Create new
+        if (formData.role === 'FRANCHISE') {
+          await staffService.createManager({
+            ...formData,
+            role: 'FRANCHISE',
+            franchise_id: user.franchise_id,
+            franchise_name: user.franchise_name,
+            vendor_id: user.vendor_id,
+            vendor_name: user.vendor_name
+          });
+          setToast({ show: true, message: 'Manager created successfully!', type: 'success' });
+        } else {
+          await staffService.createStaff({
+            ...formData,
+            role: 'FRANCHISE_STAFF',
+            franchise_id: user.franchise_id
+          });
+          setToast({ show: true, message: 'Staff created successfully!', type: 'success' });
+        }
       }
       handleCloseModal();
-      fetchStaff();
+      fetchData();
     } catch (err) {
-      console.error('Failed to save staff:', err);
-      setToast({ show: true, message: err.message || 'Failed to save staff', type: 'error' });
+      console.error('Failed to save:', err);
+      setToast({ show: true, message: err.message || 'Failed to save', type: 'error' });
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleDelete = async (staffId) => {
-    if (!window.confirm('Are you sure you want to delete this staff member?')) return;
+  const handleDelete = async (id, isManager = false) => {
+    if (!window.confirm(`Are you sure you want to delete this ${isManager ? 'manager' : 'staff member'}?`)) return;
 
     try {
-      await staffService.deleteStaff(staffId);
-      setToast({ show: true, message: 'Staff deleted successfully!', type: 'success' });
-      fetchStaff();
+      if (isManager) {
+        await staffService.deleteManager(id);
+        setToast({ show: true, message: 'Manager deleted successfully!', type: 'success' });
+      } else {
+        await staffService.deleteStaff(id);
+        setToast({ show: true, message: 'Staff deleted successfully!', type: 'success' });
+      }
+      fetchData();
     } catch (err) {
-      console.error('Failed to delete staff:', err);
-      setToast({ show: true, message: 'Failed to delete staff', type: 'error' });
+      console.error('Failed to delete:', err);
+      setToast({ show: true, message: 'Failed to delete', type: 'error' });
     }
   };
 
@@ -125,7 +155,7 @@ export default function FranchiseStaffManagement() {
     try {
       await staffService.updateStaff(staffId, { score: 100 });
       setToast({ show: true, message: 'Score reset to 100', type: 'success' });
-      fetchStaff();
+      fetchData();
     } catch (err) {
       console.error('Failed to reset score:', err);
       setToast({ show: true, message: 'Failed to reset score', type: 'error' });
@@ -139,7 +169,7 @@ export default function FranchiseStaffManagement() {
   };
 
   if (loading) {
-    return <div style={{ textAlign: 'center', padding: 60, color: '#6b7280' }}>Loading staff...</div>;
+    return <div style={{ textAlign: 'center', padding: 60, color: '#6b7280' }}>Loading...</div>;
   }
 
   return (
@@ -153,7 +183,7 @@ export default function FranchiseStaffManagement() {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, color: '#1f2937', margin: 0 }}>
-          Staff Management
+          Team Management
         </h1>
         <button
           onClick={() => handleOpenModal()}
@@ -170,125 +200,238 @@ export default function FranchiseStaffManagement() {
             cursor: 'pointer'
           }}
         >
-          + Add Staff
+          + Add {activeTab === 'managers' ? 'Manager' : 'Staff'}
         </button>
       </div>
 
-      {/* Staff List */}
-      {staff.length === 0 ? (
-        <div style={{
-          background: 'white',
-          borderRadius: 16,
-          padding: 40,
-          textAlign: 'center',
-          color: '#6b7280'
-        }}>
-          No staff members yet. Add your first staff member to get started.
-        </div>
-      ) : (
-        <div style={{ display: 'grid', gap: 16 }}>
-          {staff.map(member => (
-            <div
-              key={member.id}
-              style={{
-                background: 'white',
-                borderRadius: 16,
-                padding: 20,
-                boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <h3 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>{member.name}</h3>
-                    <span style={{
-                      padding: '4px 10px',
-                      background: member.status === 'ACTIVE' ? '#d1fae5' : '#fee2e2',
-                      color: member.status === 'ACTIVE' ? '#065f46' : '#991b1b',
-                      borderRadius: 12,
-                      fontSize: 12,
-                      fontWeight: 500
-                    }}>
-                      {member.status || 'ACTIVE'}
-                    </span>
-                  </div>
-                  <div style={{ color: '#6b7280', fontSize: 14, marginTop: 4 }}>
-                    ID: {member.employee_id}
-                  </div>
-                  <div style={{ display: 'flex', gap: 24, marginTop: 12, fontSize: 14 }}>
-                    <div>
-                      <span style={{ color: '#9ca3af' }}>Email: </span>
-                      <span style={{ color: '#4b5563' }}>{member.email}</span>
-                    </div>
-                    <div>
-                      <span style={{ color: '#9ca3af' }}>Phone: </span>
-                      <span style={{ color: '#4b5563' }}>{member.phone}</span>
-                    </div>
-                  </div>
-                </div>
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 24 }}>
+        <button
+          onClick={() => setActiveTab('staff')}
+          style={{
+            padding: '10px 20px',
+            borderRadius: 8,
+            border: 'none',
+            background: activeTab === 'staff' ? '#3b82f6' : '#f3f4f6',
+            color: activeTab === 'staff' ? 'white' : '#6b7280',
+            fontWeight: 600,
+            cursor: 'pointer'
+          }}
+        >
+          Staff ({staff.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('managers')}
+          style={{
+            padding: '10px 20px',
+            borderRadius: 8,
+            border: 'none',
+            background: activeTab === 'managers' ? '#10b981' : '#f3f4f6',
+            color: activeTab === 'managers' ? 'white' : '#6b7280',
+            fontWeight: 600,
+            cursor: 'pointer'
+          }}
+        >
+          Managers ({managers.length})
+        </button>
+      </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                  {/* Score */}
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{
-                      fontSize: 28,
-                      fontWeight: 700,
-                      color: getScoreColor(member.score || 100)
-                    }}>
-                      {member.score || 100}
-                    </div>
-                    <div style={{ fontSize: 11, color: '#9ca3af' }}>Score</div>
-                  </div>
+      {/* Managers Tab */}
+      {activeTab === 'managers' && (
+        <>
+          <div style={{
+            background: '#f0fdf4',
+            border: '1px solid #bbf7d0',
+            borderRadius: 12,
+            padding: 16,
+            marginBottom: 20,
+            fontSize: 14,
+            color: '#166534'
+          }}>
+            <strong>Managers</strong> have the same access as you - they can create orders, manage staff, and view reports.
+          </div>
 
-                  {/* Actions */}
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button
-                      onClick={() => handleOpenModal(member)}
-                      style={{
-                        padding: '8px 16px',
-                        background: '#f3f4f6',
-                        border: 'none',
-                        borderRadius: 8,
-                        cursor: 'pointer',
-                        fontWeight: 500
-                      }}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleResetScore(member.id)}
-                      style={{
-                        padding: '8px 16px',
-                        background: '#dbeafe',
-                        color: '#1d4ed8',
-                        border: 'none',
-                        borderRadius: 8,
-                        cursor: 'pointer',
-                        fontWeight: 500
-                      }}
-                    >
-                      Reset Score
-                    </button>
-                    <button
-                      onClick={() => handleDelete(member.id)}
-                      style={{
-                        padding: '8px 16px',
-                        background: '#fee2e2',
-                        color: '#dc2626',
-                        border: 'none',
-                        borderRadius: 8,
-                        cursor: 'pointer',
-                        fontWeight: 500
-                      }}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              </div>
+          {managers.length === 0 ? (
+            <div style={{
+              background: 'white',
+              borderRadius: 16,
+              padding: 40,
+              textAlign: 'center',
+              color: '#6b7280'
+            }}>
+              No managers added yet. Add a manager to give them access to this franchise.
             </div>
-          ))}
-        </div>
+          ) : (
+            <div style={{ display: 'grid', gap: 12 }}>
+              {managers.map(manager => (
+                <div
+                  key={manager.id}
+                  style={{
+                    background: 'white',
+                    borderRadius: 12,
+                    padding: 16,
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <span style={{ fontWeight: 600, fontSize: 16 }}>{manager.name}</span>
+                      <span style={{
+                        padding: '4px 10px',
+                        background: '#d1fae5',
+                        color: '#065f46',
+                        borderRadius: 12,
+                        fontSize: 11,
+                        fontWeight: 600
+                      }}>
+                        MANAGER
+                      </span>
+                    </div>
+                    <div style={{ color: '#6b7280', fontSize: 13, marginTop: 4 }}>
+                      {manager.email} • {manager.phone || 'No phone'}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleDelete(manager.id, true)}
+                    style={{
+                      padding: '8px 16px',
+                      background: '#fee2e2',
+                      color: '#dc2626',
+                      border: 'none',
+                      borderRadius: 8,
+                      cursor: 'pointer',
+                      fontWeight: 500
+                    }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Staff Tab */}
+      {activeTab === 'staff' && (
+        <>
+          {staff.length === 0 ? (
+            <div style={{
+              background: 'white',
+              borderRadius: 16,
+              padding: 40,
+              textAlign: 'center',
+              color: '#6b7280'
+            }}>
+              No staff members yet. Add your first staff member to get started.
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: 16 }}>
+              {staff.map(member => (
+                <div
+                  key={member.id}
+                  style={{
+                    background: 'white',
+                    borderRadius: 16,
+                    padding: 20,
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <h3 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>{member.name}</h3>
+                        <span style={{
+                          padding: '4px 10px',
+                          background: member.status === 'ACTIVE' ? '#d1fae5' : '#fee2e2',
+                          color: member.status === 'ACTIVE' ? '#065f46' : '#991b1b',
+                          borderRadius: 12,
+                          fontSize: 12,
+                          fontWeight: 500
+                        }}>
+                          {member.status || 'ACTIVE'}
+                        </span>
+                      </div>
+                      <div style={{ color: '#6b7280', fontSize: 14, marginTop: 4 }}>
+                        ID: {member.employee_id}
+                      </div>
+                      <div style={{ display: 'flex', gap: 24, marginTop: 12, fontSize: 14 }}>
+                        <div>
+                          <span style={{ color: '#9ca3af' }}>Email: </span>
+                          <span style={{ color: '#4b5563' }}>{member.email}</span>
+                        </div>
+                        <div>
+                          <span style={{ color: '#9ca3af' }}>Phone: </span>
+                          <span style={{ color: '#4b5563' }}>{member.phone}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{
+                          fontSize: 28,
+                          fontWeight: 700,
+                          color: getScoreColor(member.score || 100)
+                        }}>
+                          {member.score || 100}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#9ca3af' }}>Score</div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          onClick={() => handleOpenModal(member)}
+                          style={{
+                            padding: '8px 16px',
+                            background: '#f3f4f6',
+                            border: 'none',
+                            borderRadius: 8,
+                            cursor: 'pointer',
+                            fontWeight: 500
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleResetScore(member.id)}
+                          style={{
+                            padding: '8px 16px',
+                            background: '#dbeafe',
+                            color: '#1d4ed8',
+                            border: 'none',
+                            borderRadius: 8,
+                            cursor: 'pointer',
+                            fontWeight: 500
+                          }}
+                        >
+                          Reset Score
+                        </button>
+                        <button
+                          onClick={() => handleDelete(member.id)}
+                          style={{
+                            padding: '8px 16px',
+                            background: '#fee2e2',
+                            color: '#dc2626',
+                            border: 'none',
+                            borderRadius: 8,
+                            cursor: 'pointer',
+                            fontWeight: 500
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {/* Add/Edit Modal */}
@@ -310,10 +453,54 @@ export default function FranchiseStaffManagement() {
             maxWidth: 480
           }}>
             <h2 style={{ fontSize: 20, fontWeight: 600, marginBottom: 20 }}>
-              {editingStaff ? 'Edit Staff' : 'Add New Staff'}
+              {editingStaff ? 'Edit Staff' : formData.role === 'FRANCHISE' ? 'Add New Manager' : 'Add New Staff'}
             </h2>
 
             <form onSubmit={handleSubmit}>
+              {/* Role Selection (only for new) */}
+              {!editingStaff && (
+                <div style={{ marginBottom: 16 }}>
+                  <label style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Type *</label>
+                  <div style={{ display: 'flex', gap: 12 }}>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, role: 'FRANCHISE_STAFF' })}
+                      style={{
+                        flex: 1,
+                        padding: '12px',
+                        borderRadius: 8,
+                        border: formData.role === 'FRANCHISE_STAFF' ? '2px solid #3b82f6' : '1px solid #d1d5db',
+                        background: formData.role === 'FRANCHISE_STAFF' ? '#dbeafe' : 'white',
+                        cursor: 'pointer',
+                        fontWeight: 500
+                      }}
+                    >
+                      Staff
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, role: 'FRANCHISE' })}
+                      style={{
+                        flex: 1,
+                        padding: '12px',
+                        borderRadius: 8,
+                        border: formData.role === 'FRANCHISE' ? '2px solid #10b981' : '1px solid #d1d5db',
+                        background: formData.role === 'FRANCHISE' ? '#d1fae5' : 'white',
+                        cursor: 'pointer',
+                        fontWeight: 500
+                      }}
+                    >
+                      Manager
+                    </button>
+                  </div>
+                  {formData.role === 'FRANCHISE' && (
+                    <p style={{ fontSize: 12, color: '#059669', marginTop: 6 }}>
+                      Managers get full access to this franchise.
+                    </p>
+                  )}
+                </div>
+              )}
+
               <div style={{ marginBottom: 16 }}>
                 <label style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Name *</label>
                 <input
@@ -326,7 +513,8 @@ export default function FranchiseStaffManagement() {
                     padding: '10px 14px',
                     border: '1px solid #d1d5db',
                     borderRadius: 8,
-                    fontSize: 14
+                    fontSize: 14,
+                    boxSizing: 'border-box'
                   }}
                 />
               </div>
@@ -343,7 +531,8 @@ export default function FranchiseStaffManagement() {
                     padding: '10px 14px',
                     border: '1px solid #d1d5db',
                     borderRadius: 8,
-                    fontSize: 14
+                    fontSize: 14,
+                    boxSizing: 'border-box'
                   }}
                 />
               </div>
@@ -360,7 +549,8 @@ export default function FranchiseStaffManagement() {
                     padding: '10px 14px',
                     border: '1px solid #d1d5db',
                     borderRadius: 8,
-                    fontSize: 14
+                    fontSize: 14,
+                    boxSizing: 'border-box'
                   }}
                 />
               </div>
@@ -379,27 +569,31 @@ export default function FranchiseStaffManagement() {
                     padding: '10px 14px',
                     border: '1px solid #d1d5db',
                     borderRadius: 8,
-                    fontSize: 14
+                    fontSize: 14,
+                    boxSizing: 'border-box'
                   }}
                 />
               </div>
 
-              <div style={{ marginBottom: 24 }}>
-                <label style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Address</label>
-                <textarea
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  rows={2}
-                  style={{
-                    width: '100%',
-                    padding: '10px 14px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: 8,
-                    fontSize: 14,
-                    resize: 'vertical'
-                  }}
-                />
-              </div>
+              {formData.role === 'FRANCHISE_STAFF' && (
+                <div style={{ marginBottom: 24 }}>
+                  <label style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Address</label>
+                  <textarea
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    rows={2}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: 8,
+                      fontSize: 14,
+                      resize: 'vertical',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+              )}
 
               <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>
                 <button
@@ -421,7 +615,7 @@ export default function FranchiseStaffManagement() {
                   disabled={submitting}
                   style={{
                     padding: '10px 24px',
-                    background: '#3b82f6',
+                    background: formData.role === 'FRANCHISE' ? '#10b981' : '#3b82f6',
                     color: 'white',
                     border: 'none',
                     borderRadius: 8,

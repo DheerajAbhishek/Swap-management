@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { formatCurrency } from '../../utils/constants';
 import { franchiseService } from '../../services/franchiseService';
 import { vendorService } from '../../services/vendorService';
@@ -7,6 +8,7 @@ import { vendorService } from '../../services/vendorService';
  * FranchiseManagement - Manage franchise details and royalty
  */
 export default function FranchiseManagement() {
+  const navigate = useNavigate();
   const [franchises, setFranchises] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -23,6 +25,7 @@ export default function FranchiseManagement() {
     location: '',
     phone: '',
     email: '',
+    password: '',
     vendor_id: '',
     royalty_percent: 5
   });
@@ -110,6 +113,7 @@ export default function FranchiseManagement() {
         location: '',
         phone: '',
         email: '',
+        password: '',
         vendor_id: '',
         royalty_percent: 5
       });
@@ -142,7 +146,7 @@ export default function FranchiseManagement() {
       await franchiseService.resetPassword(resetPasswordModal.id, newPassword);
       setShowCredentials({
         name: resetPasswordModal.name,
-        username: resetPasswordModal.name.toLowerCase().replace(/[^a-z0-9]/g, '') + '@franchise.swap',
+        username: resetPasswordModal.email || resetPasswordModal.name.toLowerCase().replace(/[^a-z0-9]/g, '') + '@franchise.swap',
         password: newPassword,
         isReset: true
       });
@@ -429,8 +433,15 @@ export default function FranchiseManagement() {
               label="Email"
               value={newFranchise.email}
               onChange={(e) => setNewFranchise({ ...newFranchise, email: e.target.value })}
-              placeholder="Email address"
+              placeholder="Email address (used for login)"
               type="email"
+            />
+            <InputField
+              label="Password (Optional)"
+              value={newFranchise.password}
+              onChange={(e) => setNewFranchise({ ...newFranchise, password: e.target.value })}
+              placeholder="Leave blank for auto-generated"
+              type="text"
             />
             <div>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
@@ -496,140 +507,199 @@ export default function FranchiseManagement() {
         </div>
       )}
 
-      {/* Franchises List */}
+      {/* Franchises List - Card Layout */}
       <div style={{
-        background: 'white',
-        borderRadius: 12,
-        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-        overflow: 'hidden'
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
+        gap: 16
       }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ background: '#f9fafb' }}>
-              <th style={thStyle}>Franchise Name</th>
-              <th style={thStyle}>Owner</th>
-              <th style={thStyle}>Assigned Vendor</th>
-              <th style={thStyle}>Location</th>
-              <th style={thStyle}>Phone</th>
-              <th style={{ ...thStyle, textAlign: 'center' }}>Royalty %</th>
-              <th style={{ ...thStyle, width: 200 }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {franchises.length === 0 ? (
-              <tr>
-                <td colSpan="7" style={{ ...tdStyle, textAlign: 'center', color: '#6b7280', padding: 40 }}>
-                  No franchises added yet
-                </td>
-              </tr>
+        {franchises.length === 0 ? (
+          <div style={{
+            background: 'white',
+            borderRadius: 12,
+            padding: 40,
+            textAlign: 'center',
+            color: '#6b7280',
+            gridColumn: '1 / -1'
+          }}>
+            No franchises added yet
+          </div>
+        ) : (
+          franchises.map((franchise) => (
+            editingId === franchise.id ? (
+              // Edit Form Card
+              <div key={franchise.id} style={{
+                background: 'white',
+                borderRadius: 12,
+                padding: 20,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                border: '2px solid #10b981'
+              }}>
+                <h3 style={{ margin: '0 0 16px 0', fontSize: 16, fontWeight: 600 }}>Edit Franchise</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <InputField
+                    label="Name"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  />
+                  <InputField
+                    label="Owner"
+                    value={editForm.owner_name}
+                    onChange={(e) => setEditForm({ ...editForm, owner_name: e.target.value })}
+                  />
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                      Assigned Vendor
+                    </label>
+                    <select
+                      value={editForm.vendor_id || ''}
+                      onChange={(e) => setEditForm({ ...editForm, vendor_id: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: 8,
+                        border: '1px solid #d1d5db',
+                        fontSize: 14,
+                        boxSizing: 'border-box'
+                      }}
+                    >
+                      <option value="">Select...</option>
+                      {vendors.map(v => (
+                        <option key={v.id} value={v.id}>{v.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <InputField
+                    label="Location"
+                    value={editForm.location}
+                    onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+                  />
+                  <InputField
+                    label="Phone"
+                    value={editForm.phone}
+                    onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                  />
+                  <InputField
+                    label="Royalty %"
+                    value={editForm.royalty_percent}
+                    onChange={(e) => setEditForm({ ...editForm, royalty_percent: parseFloat(e.target.value) || 0 })}
+                    type="number"
+                    min="0"
+                    max="100"
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
+                  <button onClick={handleSaveEdit} style={saveBtnStyle}>Save</button>
+                  <button onClick={handleCancelEdit} style={cancelBtnStyle}>Cancel</button>
+                </div>
+              </div>
             ) : (
-              franchises.map((franchise) => (
-                <tr key={franchise.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                  {editingId === franchise.id ? (
-                    <>
-                      <td style={tdStyle}>
-                        <input
-                          value={editForm.name}
-                          onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                          style={inputStyle}
-                        />
-                      </td>
-                      <td style={tdStyle}>
-                        <input
-                          value={editForm.owner_name}
-                          onChange={(e) => setEditForm({ ...editForm, owner_name: e.target.value })}
-                          style={inputStyle}
-                        />
-                      </td>
-                      <td style={tdStyle}>
-                        <select
-                          value={editForm.vendor_id || ''}
-                          onChange={(e) => setEditForm({ ...editForm, vendor_id: e.target.value })}
-                          style={inputStyle}
-                        >
-                          <option value="">Select...</option>
-                          {vendors.map(v => (
-                            <option key={v.id} value={v.id}>{v.name}</option>
-                          ))}
-                        </select>
-                      </td>
-                      <td style={tdStyle}>
-                        <input
-                          value={editForm.location}
-                          onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
-                          style={inputStyle}
-                        />
-                      </td>
-                      <td style={tdStyle}>
-                        <input
-                          value={editForm.phone}
-                          onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
-                          style={inputStyle}
-                        />
-                      </td>
-                      <td style={{ ...tdStyle, textAlign: 'center' }}>
-                        <input
-                          type="number"
-                          value={editForm.royalty_percent}
-                          onChange={(e) => setEditForm({ ...editForm, royalty_percent: parseFloat(e.target.value) || 0 })}
-                          style={{ ...inputStyle, width: 70, textAlign: 'center' }}
-                          min="0"
-                          max="100"
-                        />
-                      </td>
-                      <td style={tdStyle}>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <button onClick={handleSaveEdit} style={saveBtnStyle}>Save</button>
-                          <button onClick={handleCancelEdit} style={cancelBtnStyle}>Cancel</button>
-                        </div>
-                      </td>
-                    </>
-                  ) : (
-                    <>
-                      <td style={tdStyle}>
-                        <span style={{ fontWeight: 600, color: '#1f2937' }}>{franchise.name}</span>
-                      </td>
-                      <td style={tdStyle}>{franchise.owner_name}</td>
-                      <td style={tdStyle}>
-                        <span style={{
-                          background: '#fef3c7',
-                          color: '#d97706',
-                          padding: '2px 8px',
-                          borderRadius: 4,
-                          fontSize: 12,
-                          fontWeight: 500
-                        }}>
-                          {franchise.vendor_name || 'Not Assigned'}
-                        </span>
-                      </td>
-                      <td style={tdStyle}>{franchise.location}</td>
-                      <td style={tdStyle}>{franchise.phone}</td>
-                      <td style={{ ...tdStyle, textAlign: 'center' }}>
-                        <span style={{
-                          background: '#d1fae5',
-                          color: '#059669',
-                          padding: '4px 12px',
-                          borderRadius: 20,
-                          fontWeight: 700,
-                          fontSize: 14
-                        }}>
-                          {franchise.royalty_percent}%
-                        </span>
-                      </td>
-                      <td style={tdStyle}>
-                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                          <button onClick={() => handleEdit(franchise)} style={editBtnStyle}>Edit</button>
-                          <button onClick={() => setResetPasswordModal(franchise)} style={resetBtnStyle}>Reset Pwd</button>
-                          <button onClick={() => handleDelete(franchise.id)} style={deleteBtnStyle}>Delete</button>
-                        </div>
-                      </td>
-                    </>
-                  )}
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              // Franchise Card - Clickable
+              <div
+                key={franchise.id}
+                onClick={() => navigate(`/admin/franchises/${franchise.id}/items`)}
+                style={{
+                  background: 'white',
+                  borderRadius: 12,
+                  padding: 20,
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  border: '2px solid transparent',
+                  position: 'relative'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = '#10b981';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.2)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'transparent';
+                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)';
+                }}
+              >
+                {/* Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#1f2937' }}>
+                      {franchise.name}
+                    </h3>
+                    <p style={{ margin: '4px 0 0 0', fontSize: 13, color: '#6b7280' }}>
+                      {franchise.owner_name}
+                    </p>
+                  </div>
+                  <span style={{
+                    background: '#d1fae5',
+                    color: '#059669',
+                    padding: '4px 12px',
+                    borderRadius: 20,
+                    fontWeight: 700,
+                    fontSize: 14
+                  }}>
+                    {franchise.royalty_percent}%
+                  </span>
+                </div>
+
+                {/* Assigned Vendor */}
+                <div style={{
+                  background: '#fef3c7',
+                  color: '#d97706',
+                  padding: '6px 12px',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 500,
+                  marginBottom: 12,
+                  display: 'inline-block'
+                }}>
+                  Vendor: {franchise.vendor_name || 'Not Assigned'}
+                </div>
+
+                {/* Details */}
+                <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                      <circle cx="12" cy="10" r="3" />
+                    </svg>
+                    {franchise.location || 'No location'}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                    </svg>
+                    {franchise.phone || 'No phone'}
+                  </div>
+                </div>
+
+                {/* Items Badge */}
+                <div style={{
+                  background: '#f0fdf4',
+                  color: '#10b981',
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  marginBottom: 12
+                }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="12" y1="1" x2="12" y2="23" />
+                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                  </svg>
+                  {franchise.items?.length || 0} Item Prices - Click to Manage
+                </div>
+
+                {/* Action Buttons */}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }} onClick={(e) => e.stopPropagation()}>
+                  <button onClick={() => handleEdit(franchise)} style={editBtnStyle}>Edit</button>
+                  <button onClick={() => setResetPasswordModal(franchise)} style={resetBtnStyle}>Reset Pwd</button>
+                  <button onClick={() => handleDelete(franchise.id)} style={deleteBtnStyle}>Delete</button>
+                </div>
+              </div>
+            )
+          ))
+        )}
       </div>
 
       {/* Summary Stats */}

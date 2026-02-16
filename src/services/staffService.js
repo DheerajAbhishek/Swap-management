@@ -66,6 +66,33 @@ export const staffService = {
     deleteStaff: async (id) => {
         const response = await api.delete(`/staff/${id}`);
         return response.data;
+    },
+
+    /**
+     * Get managers (KITCHEN or FRANCHISE role)
+     * @param {string} type - Optional: 'KITCHEN' or 'FRANCHISE'
+     */
+    getManagers: async (type = '') => {
+        const response = await api.get('/staff/managers', { params: { type } });
+        return response.data;
+    },
+
+    /**
+     * Create new manager
+     * @param {Object} managerData - Manager data with role KITCHEN or FRANCHISE
+     */
+    createManager: async (managerData) => {
+        const response = await api.post('/staff', managerData);
+        return response.data;
+    },
+
+    /**
+     * Delete manager
+     * @param {string} id - Manager ID
+     */
+    deleteManager: async (id) => {
+        const response = await api.delete(`/staff/managers/${id}`);
+        return response.data;
     }
 };
 

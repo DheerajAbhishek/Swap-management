@@ -214,7 +214,18 @@ export default function DailyEntry() {
             <input
               type="number"
               value={sales}
-              onChange={(e) => setSales(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                // Prevent scientific notation characters
+                if (value.includes('e') || value.includes('E')) return;
+                setSales(value);
+              }}
+              onKeyDown={(e) => {
+                // Prevent e, E, +, - keys
+                if (['e', 'E', '+', '-'].includes(e.key)) {
+                  e.preventDefault();
+                }
+              }}
               placeholder="Enter sales amount"
               min="0"
               step="0.01"

@@ -1,0 +1,9 @@
+{
+  "name": "supply-photos",
+  "version": "1.0.0",
+  "description": "Photo upload Lambda function for S3",
+  "main": "index.js",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.470.0"
+  }
+}

@@ -264,8 +264,46 @@ export default function AdminStaffManagement() {
                       {member.status || 'ACTIVE'}
                     </span>
                   </div>
-                  <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>
-                    {member.employee_id} • {member.franchise_name || member.kitchen_name || 'N/A'}
+                  <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span>{member.employee_id}</span>
+                    {member.role === 'FRANCHISE_STAFF' && member.franchise_name && (
+                      <span style={{
+                        padding: '2px 8px',
+                        background: '#dcfce7',
+                        color: '#166534',
+                        borderRadius: 6,
+                        fontSize: 12,
+                        fontWeight: 500,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4
+                      }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                          <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                        </svg>
+                        Franchise: {member.franchise_name}
+                      </span>
+                    )}
+                    {member.role === 'KITCHEN_STAFF' && member.kitchen_name && (
+                      <span style={{
+                        padding: '2px 8px',
+                        background: '#fef3c7',
+                        color: '#92400e',
+                        borderRadius: 6,
+                        fontSize: 12,
+                        fontWeight: 500,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4
+                      }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                          <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                        </svg>
+                        Kitchen: {member.kitchen_name}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -307,6 +345,46 @@ export default function AdminStaffManagement() {
                     <div style={{ fontSize: 12, color: '#6b7280' }}>Phone</div>
                     <div style={{ fontWeight: 500 }}>{member.phone}</div>
                   </div>
+                  {member.role === 'FRANCHISE_STAFF' && (
+                    <>
+                      <div>
+                        <div style={{ fontSize: 12, color: '#6b7280' }}>Franchise</div>
+                        <div style={{ fontWeight: 500, color: '#166534', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                            <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                          </svg>
+                          {member.franchise_name || 'N/A'}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12, color: '#6b7280' }}>Franchise ID</div>
+                        <div style={{ fontWeight: 500, fontSize: 11, fontFamily: 'monospace' }}>
+                          {member.franchise_id || 'N/A'}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                  {member.role === 'KITCHEN_STAFF' && (
+                    <>
+                      <div>
+                        <div style={{ fontSize: 12, color: '#6b7280' }}>Kitchen</div>
+                        <div style={{ fontWeight: 500, color: '#92400e', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                            <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                          </svg>
+                          {member.kitchen_name || 'N/A'}
+                        </div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 12, color: '#6b7280' }}>Kitchen ID</div>
+                        <div style={{ fontWeight: 500, fontSize: 11, fontFamily: 'monospace' }}>
+                          {member.kitchen_id || 'N/A'}
+                        </div>
+                      </div>
+                    </>
+                  )}
                   <div>
                     <div style={{ fontSize: 12, color: '#6b7280' }}>Created</div>
                     <div style={{ fontWeight: 500 }}>

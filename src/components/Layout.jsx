@@ -112,9 +112,15 @@ const NavIcon = ({ name, size = 18 }) => {
         <circle cx="12" cy="12" r="10"></circle>
         <polyline points="12 6 12 12 16 14"></polyline>
       </svg>
+    ),
+    settings: (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+      </svg>
     )
   };
-  
+
   return icons[name] || null;
 };
 
@@ -258,6 +264,39 @@ export default function Layout() {
             }}>
               {user?.role}
             </div>
+            {/* Show kitchen/franchise info */}
+            {(user?.role === 'KITCHEN_STAFF' || user?.role === 'KITCHEN') && user?.kitchen_name && (
+              <div style={{ marginTop: 8, padding: '6px 8px', background: 'rgba(59, 130, 246, 0.2)', borderRadius: 6, fontSize: isMobile ? 11 : 12 }}>
+                <div style={{ opacity: 0.7, fontSize: isMobile ? 10 : 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                    <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                  </svg>
+                  Kitchen
+                </div>
+                <div style={{ fontWeight: 600, marginTop: 2 }}>{user.kitchen_name}</div>
+              </div>
+            )}
+            {(user?.role === 'FRANCHISE_STAFF' || user?.role === 'FRANCHISE') && user?.franchise_name && (
+              <div style={{ marginTop: 8, padding: '6px 8px', background: 'rgba(16, 185, 129, 0.2)', borderRadius: 6, fontSize: isMobile ? 11 : 12 }}>
+                <div style={{ opacity: 0.7, fontSize: isMobile ? 10 : 11, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+                  </svg>
+                  Franchise
+                </div>
+                <div style={{ fontWeight: 600, marginTop: 2 }}>{user.franchise_name}</div>
+                {user.vendor_name && (
+                  <div style={{ opacity: 0.8, fontSize: isMobile ? 10 : 11, marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                    </svg>
+                    {user.vendor_name}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

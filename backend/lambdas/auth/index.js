@@ -110,7 +110,30 @@ exports.handler = async (event) => {
             // For FRANCHISE_STAFF, fetch vendor info from parent franchise if not on user
             let vendorId = user.vendor_id || '';
             let vendorName = user.vendor_name || '';
-            
+            let kitchenId = user.kitchen_id || '';
+            let kitchenName = user.kitchen_name || '';
+
+            // For KITCHEN role (vendor owner), vendor_id should be their own user ID
+            if (user.role === 'KITCHEN') {
+                if (!vendorId) {
+                    vendorId = user.id; // KITCHEN user ID = vendor ID
+                }
+                // Fetch vendor name if missing
+                if (!vendorName) {
+                    try {
+                        const vendorResult = await dynamodb.send(new GetCommand({
+                            TableName: 'supply_vendors',
+                            Key: { id: vendorId }
+                        }));
+                        if (vendorResult.Item) {
+                            vendorName = vendorResult.Item.name || '';
+                        }
+                    } catch (e) {
+                        console.log('Could not fetch vendor info:', e);
+                    }
+                }
+            }
+
             if ((user.role === 'FRANCHISE_STAFF' || user.role === 'FRANCHISE') && !vendorName && user.franchise_id) {
                 try {
                     const franchiseResult = await dynamodb.send(new GetCommand({
@@ -126,11 +149,40 @@ exports.handler = async (event) => {
                 }
             }
 
+            // For KITCHEN_STAFF, ensure vendor_id points to their kitchen
+            if (user.role === 'KITCHEN_STAFF' && user.kitchen_id) {
+                // Kitchen staff's vendor_id should be their kitchen's ID
+                if (!vendorId) {
+                    vendorId = user.kitchen_id;
+                    vendorName = user.kitchen_name || '';
+                }
+                kitchenId = user.kitchen_id;
+                kitchenName = user.kitchen_name || '';
+
+                // If kitchen name is missing, fetch it from vendors table
+                if (!kitchenName) {
+                    try {
+                        const kitchenResult = await dynamodb.send(new GetCommand({
+                            TableName: 'supply_vendors',
+                            Key: { id: user.kitchen_id }
+                        }));
+                        if (kitchenResult.Item) {
+                            kitchenName = kitchenResult.Item.name || '';
+                            vendorName = kitchenResult.Item.name || '';
+                        }
+                    } catch (e) {
+                        console.log('Could not fetch kitchen info:', e);
+                    }
+                }
+            }
+
             // Generate token
             const token = generateToken({
                 ...user,
                 vendor_id: vendorId,
-                vendor_name: vendorName
+                vendor_name: vendorName,
+                kitchen_id: kitchenId,
+                kitchen_name: kitchenName
             });
 
             return {
@@ -145,10 +197,10 @@ exports.handler = async (event) => {
                         role: user.role,
                         franchise_id: user.franchise_id || '',
                         franchise_name: user.franchise_name || '',
-                        vendor_id: vendorId, // Kitchen assigned to this franchise
+                        vendor_id: vendorId, // Kitchen assigned (franchise's kitchen OR kitchen staff's own kitchen)
                         vendor_name: vendorName, // Kitchen name
-                        kitchen_id: user.kitchen_id || '',
-                        kitchen_name: user.kitchen_name || '',
+                        kitchen_id: kitchenId, // For kitchen staff, their kitchen ID
+                        kitchen_name: kitchenName, // For kitchen staff, their kitchen name
                         auditor_id: user.auditor_id || '',
                         auditor_name: user.auditor_name || '',
                         staff_id: user.staff_id || '',
@@ -198,7 +250,7 @@ exports.handler = async (event) => {
             // For FRANCHISE_STAFF or FRANCHISE, fetch vendor info from parent franchise if not on user
             let vendorId = user.vendor_id || '';
             let vendorName = user.vendor_name || '';
-            
+
             if ((user.role === 'FRANCHISE_STAFF' || user.role === 'FRANCHISE') && !vendorName && user.franchise_id) {
                 try {
                     const franchiseResult = await dynamodb.send(new GetCommand({

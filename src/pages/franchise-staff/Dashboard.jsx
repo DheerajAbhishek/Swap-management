@@ -26,7 +26,7 @@ export default function FranchiseStaffDashboard() {
     const fetchData = async () => {
       try {
         setLoading(true);
-        
+
         // Get today's attendance
         const attendance = await attendanceService.getTodayAttendance();
         setTodayAttendance(attendance);
@@ -112,10 +112,10 @@ export default function FranchiseStaffDashboard() {
           boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
         }}>
           <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 8 }}>Monthly Score</div>
-          <div style={{ 
-            fontSize: 36, 
-            fontWeight: 700, 
-            color: scoreColor 
+          <div style={{
+            fontSize: 36,
+            fontWeight: 700,
+            color: scoreColor
           }}>
             {score}
           </div>
@@ -132,10 +132,10 @@ export default function FranchiseStaffDashboard() {
           <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 8 }}>Today's Status</div>
           {todayAttendance ? (
             <>
-              <div style={{ 
-                fontSize: 18, 
-                fontWeight: 600, 
-                color: todayAttendance.check_out_time ? '#10b981' : '#3b82f6' 
+              <div style={{
+                fontSize: 18,
+                fontWeight: 600,
+                color: todayAttendance.check_out_time ? '#10b981' : '#3b82f6'
               }}>
                 {todayAttendance.check_out_time ? 'Shift Complete' : 'Checked In'}
               </div>
@@ -161,7 +161,7 @@ export default function FranchiseStaffDashboard() {
         }}>
           <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 8 }}>Check-in Time</div>
           <div style={{ fontSize: 18, fontWeight: 600, color: '#1f2937' }}>
-            {todayAttendance?.check_in_time 
+            {todayAttendance?.check_in_time
               ? new Date(todayAttendance.check_in_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
               : '--:--'
             }
@@ -293,12 +293,12 @@ export default function FranchiseStaffDashboard() {
                   borderRadius: 20,
                   fontSize: 12,
                   fontWeight: 600,
-                  background: order.status === 'RECEIVED' ? '#d1fae5' : 
-                             order.status === 'DISPATCHED' ? '#dbeafe' :
-                             order.status === 'ACCEPTED' ? '#e0e7ff' : '#fef3c7',
+                  background: order.status === 'RECEIVED' ? '#d1fae5' :
+                    order.status === 'DISPATCHED' ? '#dbeafe' :
+                      order.status === 'ACCEPTED' ? '#e0e7ff' : '#fef3c7',
                   color: order.status === 'RECEIVED' ? '#065f46' :
-                         order.status === 'DISPATCHED' ? '#1e40af' :
-                         order.status === 'ACCEPTED' ? '#3730a3' : '#92400e'
+                    order.status === 'DISPATCHED' ? '#1e40af' :
+                      order.status === 'ACCEPTED' ? '#3730a3' : '#92400e'
                 }}>
                   {order.status}
                 </span>

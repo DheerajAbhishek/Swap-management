@@ -51,22 +51,24 @@ export const orderService = {
   },
 
   /**
-   * Dispatch order (Kitchen)
+   * Dispatch order (Kitchen) - with optional photo
    * @param {string} orderId
+   * @param {Object} dispatchData - { dispatch_photos: Array, dispatch_notes: string }
    * @returns {Promise<Object>}
    */
-  async dispatchOrder(orderId) {
-    const response = await api.put(`/orders/${orderId}/dispatch`);
+  async dispatchOrder(orderId, dispatchData = {}) {
+    const response = await api.put(`/orders/${orderId}/dispatch`, dispatchData);
     return response.data;
   },
 
   /**
-   * Receive order (Franchise) - marks order as received
+   * Receive order (Franchise) - marks order as received with optional photo
    * @param {string} orderId
+   * @param {Object} receiveData - { receive_photos: Array }
    * @returns {Promise<Object>}
    */
-  async receiveOrder(orderId) {
-    const response = await api.put(`/orders/${orderId}/receive`);
+  async receiveOrder(orderId, receiveData = {}) {
+    const response = await api.put(`/orders/${orderId}/receive`, receiveData);
     return response.data;
   },
 

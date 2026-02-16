@@ -8,6 +8,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.989.0",
+    "@aws-sdk/lib-dynamodb": "^3.989.0",
     "axios": "^1.13.2",
     "flatpickr": "^4.6.13",
     "react": "^18.2.0",

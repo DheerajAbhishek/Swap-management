@@ -5,10 +5,10 @@ import { formatCurrency, formatDateTime } from '../../utils/constants';
 /**
  * OrderTable - Display orders in a table format (responsive)
  */
-export default function OrderTable({ 
-  orders, 
-  onViewOrder, 
-  onAccept, 
+export default function OrderTable({
+  orders,
+  onViewOrder,
+  onAccept,
   onDispatch,
   showActions = true,
   userRole = 'FRANCHISE'
@@ -61,7 +61,7 @@ export default function OrderTable({
               </div>
               <StatusBadge status={order.status} />
             </div>
-            
+
             {userRole === 'ADMIN' && (
               <div style={{ fontSize: 13, color: '#374151', marginBottom: 8 }}>
                 <strong>Franchise:</strong> {order.franchise_name || order.franchise_id}
@@ -91,7 +91,7 @@ export default function OrderTable({
                 <span><strong>Franchise:</strong> {order.franchise_name}</span>
               </div>
             )}
-            
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <span style={{ fontSize: 13, color: '#6b7280' }}>
                 {order.items?.length || 0} items
@@ -100,7 +100,7 @@ export default function OrderTable({
                 {formatCurrency(order.total_amount || 0)}
               </span>
             </div>
-            
+
             {showActions && (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button
@@ -109,7 +109,7 @@ export default function OrderTable({
                 >
                   View
                 </button>
-                
+
                 {userRole === 'KITCHEN' && order.status === 'PLACED' && onAccept && (
                   <button
                     onClick={() => onAccept(order.id)}
@@ -118,7 +118,7 @@ export default function OrderTable({
                     Accept
                   </button>
                 )}
-                
+
                 {userRole === 'KITCHEN' && order.status === 'ACCEPTED' && onDispatch && (
                   <button
                     onClick={() => onDispatch(order.id)}
@@ -210,7 +210,7 @@ export default function OrderTable({
                     >
                       View
                     </button>
-                    
+
                     {/* Kitchen actions */}
                     {userRole === 'KITCHEN' && order.status === 'PLACED' && onAccept && (
                       <button
@@ -220,7 +220,7 @@ export default function OrderTable({
                         Accept
                       </button>
                     )}
-                    
+
                     {userRole === 'KITCHEN' && order.status === 'ACCEPTED' && onDispatch && (
                       <button
                         onClick={() => onDispatch(order.id)}

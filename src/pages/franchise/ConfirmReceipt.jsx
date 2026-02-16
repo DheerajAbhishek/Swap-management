@@ -6,6 +6,7 @@ import OrderComplaintModal from '../../components/Supply/OrderComplaintModal';
 import { formatCurrency, formatDateTime } from '../../utils/constants';
 import orderService from '../../services/orderService';
 import discrepancyService from '../../services/discrepancyService';
+import photoService from '../../services/photoService';
 import { useAuth } from '../../context/AuthContext';
 
 /**
@@ -44,12 +45,28 @@ export default function ConfirmReceipt() {
     setSubmitting(true);
 
     try {
-      // Receive the order
-      await orderService.receiveOrder(orderId);
+      // Upload receive photos if provided
+      let receivePhotoUrls = [];
+      if (data.photos && data.photos.length > 0) {
+        try {
+          receivePhotoUrls = await photoService.uploadPhotos(data.photos, `orders/${orderId}/receive`);
+        } catch (err) {
+          console.error('Failed to upload photos:', err);
+          // Continue without photos
+        }
+      }
+
+      // Receive the order with photos
+      await orderService.receiveOrder(orderId, {
+        receive_photos: receivePhotoUrls
+      });
 
       // Report discrepancies if any
       const hasDiscrepancies = data.discrepancies && data.discrepancies.length > 0;
       if (hasDiscrepancies) {
+        // Upload discrepancy photos if provided
+        let discrepancyPhotoUrls = receivePhotoUrls; // Use same photos for discrepancies
+
         for (const disc of data.discrepancies) {
           await discrepancyService.createDiscrepancy({
             order_id: orderId,
@@ -58,7 +75,8 @@ export default function ConfirmReceipt() {
             ordered_qty: disc.orderedQty,
             received_qty: disc.receivedQty,
             uom: disc.uom,
-            notes: disc.notes
+            notes: disc.notes,
+            photos: discrepancyPhotoUrls
           });
         }
       }
@@ -170,7 +188,7 @@ export default function ConfirmReceipt() {
             {formatCurrency(order.total_amount)}
           </div>
         </div>
-        
+
         {/* Raise Complaint Button */}
         <button
           onClick={() => setComplaintModal(true)}
@@ -190,9 +208,9 @@ export default function ConfirmReceipt() {
           }}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-            <line x1="12" y1="9" x2="12" y2="13"/>
-            <line x1="12" y1="17" x2="12.01" y2="17"/>
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
           </svg>
           Raise Complaint with Photo
         </button>

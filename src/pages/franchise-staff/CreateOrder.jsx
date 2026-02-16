@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import OrderForm from '../../components/Supply/OrderForm';
-import { itemService } from '../../services/itemService';
+import { vendorService } from '../../services/vendorService';
 import { orderService } from '../../services/orderService';
+import { useAuth } from '../../context/AuthContext';
 
 /**
  * Franchise Staff - Create Order
- * Same functionality as franchise owner but no financial data shown
+ * Items fetched from connected vendor with franchise prices
  */
 export default function StaffCreateOrder() {
+  const { user } = useAuth();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -21,8 +23,26 @@ export default function StaffCreateOrder() {
     const fetchItems = async () => {
       try {
         setLoading(true);
-        const data = await itemService.getItems();
-        setItems(data);
+        const vendorId = user?.vendor_id;
+
+        if (!vendorId) {
+          setError('No vendor assigned. Please contact admin.');
+          return;
+        }
+
+        // Get items from vendor with franchise prices
+        const data = await vendorService.getVendorItemsForFranchise(vendorId);
+
+        // Transform to format expected by OrderForm
+        const formattedItems = data.map(item => ({
+          id: item.id,
+          name: item.name,
+          category: item.category || 'General',
+          defaultUom: item.unit || 'kg',
+          standard_price: item.price
+        }));
+
+        setItems(formattedItems);
       } catch (err) {
         console.error('Failed to fetch items:', err);
         setError('Failed to load items');
@@ -31,7 +51,7 @@ export default function StaffCreateOrder() {
       }
     };
     fetchItems();
-  }, []);
+  }, [user]);
 
   const handleSubmit = async (orderData) => {
     setSubmitting(true);

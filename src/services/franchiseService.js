@@ -58,6 +58,40 @@ export const franchiseService = {
   async resetPassword(franchiseId, newPassword) {
     const response = await api.put(`/franchises/${franchiseId}/reset-password`, { password: newPassword });
     return response.data;
+  },
+
+  // ============ FRANCHISE ITEM MANAGEMENT ============
+
+  /**
+   * Add item to franchise with custom price
+   */
+  async addFranchiseItem(franchiseId, itemData) {
+    const response = await api.post(`/franchises/${franchiseId}/items`, itemData);
+    return response.data;
+  },
+
+  /**
+   * Update franchise item price
+   */
+  async updateFranchiseItem(franchiseId, itemId, itemData) {
+    const response = await api.put(`/franchises/${franchiseId}/items/${itemId}`, itemData);
+    return response.data;
+  },
+
+  /**
+   * Delete item from franchise
+   */
+  async deleteFranchiseItem(franchiseId, itemId) {
+    const response = await api.delete(`/franchises/${franchiseId}/items/${itemId}`);
+    return response.data;
+  },
+
+  /**
+   * Get franchise items (for ordering)
+   */
+  async getFranchiseItems(franchiseId) {
+    const response = await api.get(`/franchises/${franchiseId}/items`);
+    return Array.isArray(response.data) ? response.data : [];
   }
 };
 

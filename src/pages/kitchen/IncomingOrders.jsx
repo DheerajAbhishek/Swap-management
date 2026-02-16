@@ -3,16 +3,12 @@ import StatusBadge from '../../components/Supply/StatusBadge';
 import { formatCurrency, formatDateTime } from '../../utils/constants';
 import orderService from '../../services/orderService';
 import OrderComplaintModal from '../../components/Supply/OrderComplaintModal';
+import DispatchModal from '../../components/Supply/DispatchModal';
 import { useAuth } from '../../context/AuthContext';
-
-// Get margin from localStorage (default 5%)
-const getMarginPercent = () => {
-  const vendors = JSON.parse(localStorage.getItem('supply_vendors') || '[]');
-  return vendors.length > 0 ? vendors[0].margin_percent : 5;
-};
 
 /**
  * Kitchen Incoming Orders - Accept and dispatch orders
+ * Shows both selling price (franchise_price) and vendor cost for margin tracking
  */
 export default function IncomingOrders() {
   const { user } = useAuth();
@@ -23,12 +19,7 @@ export default function IncomingOrders() {
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [actionLoading, setActionLoading] = useState(null);
   const [complaintModal, setComplaintModal] = useState({ open: false, order: null });
-  const marginPercent = getMarginPercent();
-
-  // Calculate kitchen amount (after margin deduction)
-  const getKitchenAmount = (amount) => {
-    return amount * (1 - marginPercent / 100);
-  };
+  const [dispatchModal, setDispatchModal] = useState({ open: false, order: null });
 
   const fetchOrders = async () => {
     try {
@@ -65,18 +56,23 @@ export default function IncomingOrders() {
     }
   };
 
-  const handleDispatch = async (orderId) => {
+  const handleDispatch = async (orderId, dispatchData = {}) => {
     setActionLoading(orderId);
     try {
-      await orderService.dispatchOrder(orderId);
+      await orderService.dispatchOrder(orderId, dispatchData);
       // Refetch orders to get updated data
       await fetchOrders();
       setSelectedOrder(null);
+      setDispatchModal({ open: false, order: null });
     } catch (err) {
       alert('Failed to dispatch order: ' + err.message);
     } finally {
       setActionLoading(null);
     }
+  };
+
+  const openDispatchModal = (order) => {
+    setDispatchModal({ open: true, order });
   };
 
   if (loading) {
@@ -85,6 +81,7 @@ export default function IncomingOrders() {
 
   const placedCount = orders.filter(o => o.status === 'PLACED').length;
   const acceptedCount = orders.filter(o => o.status === 'ACCEPTED').length;
+  const receivedCount = orders.filter(o => o.status === 'RECEIVED').length;
 
   return (
     <div>
@@ -98,7 +95,7 @@ export default function IncomingOrders() {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 20 }}>
+      <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
         <button
           onClick={() => setFilterStatus('PLACED')}
           style={filterStatus === 'PLACED' ? activeTabBtn : tabBtn}
@@ -110,6 +107,12 @@ export default function IncomingOrders() {
           style={filterStatus === 'ACCEPTED' ? activeTabBtn : tabBtn}
         >
           Ready to Dispatch ({acceptedCount})
+        </button>
+        <button
+          onClick={() => setFilterStatus('RECEIVED')}
+          style={filterStatus === 'RECEIVED' ? activeTabBtnGreen : tabBtn}
+        >
+          ✓ Received ({receivedCount})
         </button>
         <button
           onClick={() => setFilterStatus('ALL')}
@@ -140,7 +143,8 @@ export default function IncomingOrders() {
                 borderRadius: 16,
                 padding: 20,
                 boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-                borderLeft: order.status === 'PLACED' ? '4px solid #f59e0b' : '4px solid #3b82f6'
+                borderLeft: order.status === 'PLACED' ? '4px solid #f59e0b' :
+                  order.status === 'RECEIVED' ? '4px solid #10b981' : '4px solid #3b82f6'
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
@@ -156,12 +160,9 @@ export default function IncomingOrders() {
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 12, color: '#6b7280' }}>Your Amount</div>
+                  <div style={{ fontSize: 12, color: '#6b7280' }}>Total Cost</div>
                   <div style={{ fontSize: 20, fontWeight: 700, color: '#10b981' }}>
-                    {formatCurrency(getKitchenAmount(order.total_amount))}
-                  </div>
-                  <div style={{ fontSize: 11, color: '#9ca3af' }}>
-                    Order: {formatCurrency(order.total_amount)} (-{marginPercent}%)
+                    {formatCurrency(order.total_vendor_cost || order.total_amount)}
                   </div>
                 </div>
               </div>
@@ -184,7 +185,9 @@ export default function IncomingOrders() {
                     padding: '4px 0'
                   }}>
                     <span>{item.item_name}</span>
-                    <span style={{ color: '#6b7280' }}>{item.ordered_qty} {item.uom}</span>
+                    <span style={{ color: '#6b7280' }}>
+                      {item.ordered_qty} {item.uom} @ {formatCurrency(item.vendor_price || item.unit_price)}
+                    </span>
                   </div>
                 ))}
                 {order.items.length > 3 && (
@@ -193,6 +196,44 @@ export default function IncomingOrders() {
                   </div>
                 )}
               </div>
+
+              {/* Receipt Photos - Show when order is received */}
+              {order.status === 'RECEIVED' && order.receive_photos && order.receive_photos.length > 0 && (
+                <div style={{
+                  background: '#f0fdf4',
+                  borderRadius: 10,
+                  padding: 12,
+                  marginBottom: 16
+                }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#166534', marginBottom: 8 }}>
+                    📸 Receipt Confirmation Photos
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {order.receive_photos.map((photo, idx) => (
+                      <img
+                        key={idx}
+                        src={photo}
+                        alt={`Receipt ${idx + 1}`}
+                        onClick={() => window.open(photo, '_blank')}
+                        style={{
+                          width: 70,
+                          height: 70,
+                          objectFit: 'cover',
+                          borderRadius: 8,
+                          cursor: 'pointer',
+                          border: '2px solid #86efac'
+                        }}
+                      />
+                    ))}
+                  </div>
+                  {order.received_at && (
+                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 6 }}>
+                      Received: {formatDateTime(order.received_at)}
+                      {order.received_by_name && ` by ${order.received_by_name}`}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Actions */}
               <div style={{ display: 'flex', gap: 12 }}>
@@ -232,7 +273,7 @@ export default function IncomingOrders() {
 
                 {order.status === 'ACCEPTED' && (
                   <button
-                    onClick={() => handleDispatch(order.id)}
+                    onClick={() => openDispatchModal(order)}
                     disabled={actionLoading === order.id}
                     style={{
                       padding: '10px 20px',
@@ -242,10 +283,19 @@ export default function IncomingOrders() {
                       color: 'white',
                       fontSize: 14,
                       fontWeight: 600,
-                      cursor: actionLoading === order.id ? 'not-allowed' : 'pointer'
+                      cursor: actionLoading === order.id ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6
                     }}
                   >
-                    {actionLoading === order.id ? 'Dispatching...' : '🚚 Mark Dispatched'}
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="1" y="3" width="15" height="13" rx="2" />
+                      <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
+                      <circle cx="5.5" cy="18.5" r="2.5" />
+                      <circle cx="18.5" cy="18.5" r="2.5" />
+                    </svg>
+                    {actionLoading === order.id ? 'Dispatching...' : 'Dispatch'}
                   </button>
                 )}
               </div>
@@ -276,7 +326,7 @@ export default function IncomingOrders() {
                 <tr style={{ background: '#f9fafb' }}>
                   <th style={thStyle}>Item</th>
                   <th style={thStyle}>Qty</th>
-                  <th style={thStyle}>Price</th>
+                  <th style={thStyle}>Unit Cost</th>
                   <th style={thStyle}>Total</th>
                 </tr>
               </thead>
@@ -285,18 +335,58 @@ export default function IncomingOrders() {
                   <tr key={item.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
                     <td style={tdStyle}>{item.item_name}</td>
                     <td style={tdStyle}>{item.ordered_qty} {item.uom}</td>
-                    <td style={tdStyle}>{formatCurrency(item.unit_price)}</td>
-                    <td style={tdStyle}>{formatCurrency(item.ordered_qty * item.unit_price)}</td>
+                    <td style={tdStyle}>
+                      {formatCurrency(item.vendor_price || item.unit_price)}
+                    </td>
+                    <td style={tdStyle}>
+                      {formatCurrency(item.ordered_qty * (item.vendor_price || item.unit_price))}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
 
+            {/* Receipt Photos Section */}
+            {selectedOrder.status === 'RECEIVED' && selectedOrder.receive_photos && selectedOrder.receive_photos.length > 0 && (
+              <div style={{
+                background: '#f0fdf4',
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 20
+              }}>
+                <h4 style={{ fontSize: 14, fontWeight: 600, color: '#166534', marginBottom: 12 }}>
+                  📸 Receipt Confirmation Photos from Franchise
+                </h4>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {selectedOrder.receive_photos.map((photo, idx) => (
+                    <img
+                      key={idx}
+                      src={photo}
+                      alt={`Receipt ${idx + 1}`}
+                      onClick={() => window.open(photo, '_blank')}
+                      style={{
+                        width: 100,
+                        height: 100,
+                        objectFit: 'cover',
+                        borderRadius: 8,
+                        cursor: 'pointer',
+                        border: '2px solid #86efac'
+                      }}
+                    />
+                  ))}
+                </div>
+                <div style={{ fontSize: 12, color: '#6b7280', marginTop: 8 }}>
+                  Received: {formatDateTime(selectedOrder.received_at)}
+                  {selectedOrder.received_by_name && ` by ${selectedOrder.received_by_name}`}
+                </div>
+              </div>
+            )}
+
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
               <div>
-                <div style={{ fontSize: 12, color: '#6b7280' }}>Order Total</div>
+                <div style={{ fontSize: 12, color: '#6b7280' }}>Total Cost</div>
                 <div style={{ fontSize: 20, fontWeight: 700, color: '#10b981' }}>
-                  {formatCurrency(selectedOrder.total_amount)}
+                  {formatCurrency(selectedOrder.total_vendor_cost || selectedOrder.total_amount)}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
@@ -319,9 +409,9 @@ export default function IncomingOrders() {
                   }}
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                    <line x1="12" y1="9" x2="12" y2="13"/>
-                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                    <line x1="12" y1="9" x2="12" y2="13" />
+                    <line x1="12" y1="17" x2="12.01" y2="17" />
                   </svg>
                   Raise Complaint
                 </button>
@@ -332,7 +422,7 @@ export default function IncomingOrders() {
                   </button>
                 )}
                 {selectedOrder.status === 'ACCEPTED' && (
-                  <button onClick={() => handleDispatch(selectedOrder.id)} style={dispatchBtnStyle}>
+                  <button onClick={() => { setSelectedOrder(null); openDispatchModal(selectedOrder); }} style={dispatchBtnStyle}>
                     Dispatch Order
                   </button>
                 )}
@@ -353,6 +443,15 @@ export default function IncomingOrders() {
           alert('Complaint submitted successfully!');
         }}
       />
+
+      {/* Dispatch Modal */}
+      <DispatchModal
+        isOpen={dispatchModal.open}
+        onClose={() => setDispatchModal({ open: false, order: null })}
+        order={dispatchModal.order}
+        onDispatch={handleDispatch}
+        loading={actionLoading === dispatchModal.order?.id}
+      />
     </div>
   );
 }
@@ -361,6 +460,7 @@ const thStyle = { padding: '10px 12px', textAlign: 'left', fontWeight: 600, colo
 const tdStyle = { padding: '10px 12px', fontSize: 13 };
 const tabBtn = { padding: '10px 20px', borderRadius: 10, border: '1px solid #e5e7eb', background: 'white', color: '#6b7280', fontSize: 14, cursor: 'pointer' };
 const activeTabBtn = { padding: '10px 20px', borderRadius: 10, border: '1px solid #3b82f6', background: '#eff6ff', color: '#3b82f6', fontSize: 14, fontWeight: 600, cursor: 'pointer' };
+const activeTabBtnGreen = { padding: '10px 20px', borderRadius: 10, border: '1px solid #10b981', background: '#f0fdf4', color: '#10b981', fontSize: 14, fontWeight: 600, cursor: 'pointer' };
 const modalOverlay = { position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 };
 const modalContent = { background: 'white', borderRadius: 16, padding: 24, width: '90%', maxWidth: 600, maxHeight: '90vh', overflowY: 'auto' };
 const cancelBtnStyle = { padding: '10px 20px', borderRadius: 8, border: 'none', background: '#e5e7eb', color: '#374151', fontSize: 14, cursor: 'pointer' };

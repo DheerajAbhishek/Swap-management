@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { orderService } from '../../services/orderService';
 import ToastNotification from '../../components/ToastNotification';
 import OrderComplaintModal from '../../components/Supply/OrderComplaintModal';
+import DispatchModal from '../../components/Supply/DispatchModal';
 
 /**
  * Kitchen Staff Incoming Orders
@@ -19,6 +20,7 @@ export default function KitchenStaffIncomingOrders() {
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const [actionLoading, setActionLoading] = useState(null);
   const [complaintModal, setComplaintModal] = useState({ open: false, order: null });
+  const [dispatchModal, setDispatchModal] = useState({ open: false, order: null });
 
   useEffect(() => {
     fetchOrders();
@@ -40,7 +42,7 @@ export default function KitchenStaffIncomingOrders() {
   const handleAccept = async (orderId) => {
     try {
       setActionLoading(orderId);
-      await orderService.updateOrder(orderId, { status: 'ACCEPTED' });
+      await orderService.acceptOrder(orderId);
       setToast({ show: true, message: 'Order accepted successfully!', type: 'success' });
       fetchOrders();
     } catch (err) {
@@ -51,11 +53,12 @@ export default function KitchenStaffIncomingOrders() {
     }
   };
 
-  const handleDispatch = async (orderId) => {
+  const handleDispatch = async (orderId, dispatchData = {}) => {
     try {
       setActionLoading(orderId);
-      await orderService.updateOrder(orderId, { status: 'DISPATCHED' });
+      await orderService.dispatchOrder(orderId, dispatchData);
       setToast({ show: true, message: 'Order dispatched successfully!', type: 'success' });
+      setDispatchModal({ open: false, order: null });
       fetchOrders();
     } catch (err) {
       console.error('Failed to dispatch order:', err);
@@ -65,6 +68,10 @@ export default function KitchenStaffIncomingOrders() {
     }
   };
 
+  const openDispatchModal = (order) => {
+    setDispatchModal({ open: true, order });
+  };
+
   const filteredOrders = orders.filter(order => {
     if (filter === 'ALL') return true;
     return order.status === filter;
@@ -72,10 +79,10 @@ export default function KitchenStaffIncomingOrders() {
 
   const filters = [
     { value: 'ALL', label: 'All Orders' },
-    { value: 'PLACED', label: '🔔 New' },
-    { value: 'ACCEPTED', label: '✓ Accepted' },
-    { value: 'DISPATCHED', label: '🚚 Dispatched' },
-    { value: 'RECEIVED', label: '📦 Received' }
+    { value: 'PLACED', label: 'New', icon: '🔔' },
+    { value: 'ACCEPTED', label: 'Accepted', icon: '✓' },
+    { value: 'DISPATCHED', label: 'Dispatched', icon: '🚚' },
+    { value: 'RECEIVED', label: 'Received', icon: '📦' }
   ];
 
   const getStatusBadge = (status) => {
@@ -219,7 +226,7 @@ export default function KitchenStaffIncomingOrders() {
                   )}
                   {order.status === 'ACCEPTED' && (
                     <button
-                      onClick={(e) => { e.stopPropagation(); handleDispatch(order.id); }}
+                      onClick={(e) => { e.stopPropagation(); openDispatchModal(order); }}
                       disabled={actionLoading === order.id}
                       style={{
                         padding: '10px 20px',
@@ -229,10 +236,19 @@ export default function KitchenStaffIncomingOrders() {
                         borderRadius: 8,
                         fontWeight: 600,
                         cursor: actionLoading === order.id ? 'wait' : 'pointer',
-                        opacity: actionLoading === order.id ? 0.7 : 1
+                        opacity: actionLoading === order.id ? 0.7 : 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6
                       }}
                     >
-                      {actionLoading === order.id ? 'Dispatching...' : '🚚 Dispatch'}
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="1" y="3" width="15" height="13" rx="2" />
+                        <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
+                        <circle cx="5.5" cy="18.5" r="2.5" />
+                        <circle cx="18.5" cy="18.5" r="2.5" />
+                      </svg>
+                      {actionLoading === order.id ? 'Dispatching...' : 'Dispatch'}
                     </button>
                   )}
                   <span style={{ color: '#9ca3af', fontSize: 20 }}>
@@ -331,9 +347,9 @@ export default function KitchenStaffIncomingOrders() {
                       }}
                     >
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-                        <line x1="12" y1="9" x2="12" y2="13"/>
-                        <line x1="12" y1="17" x2="12.01" y2="17"/>
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                        <line x1="12" y1="9" x2="12" y2="13" />
+                        <line x1="12" y1="17" x2="12.01" y2="17" />
                       </svg>
                       Raise Complaint
                     </button>
@@ -354,6 +370,15 @@ export default function KitchenStaffIncomingOrders() {
         onSuccess={() => {
           setToast({ show: true, message: 'Complaint submitted successfully!', type: 'success' });
         }}
+      />
+
+      {/* Dispatch Modal */}
+      <DispatchModal
+        isOpen={dispatchModal.open}
+        onClose={() => setDispatchModal({ open: false, order: null })}
+        order={dispatchModal.order}
+        onDispatch={handleDispatch}
+        loading={actionLoading === dispatchModal.order?.id}
       />
     </div>
   );

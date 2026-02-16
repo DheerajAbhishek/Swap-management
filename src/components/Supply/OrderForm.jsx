@@ -51,7 +51,7 @@ export default function OrderForm({ items, onSubmit, loading }) {
   const handleItemChange = (index, itemName) => {
     const updated = [...rows];
     updated[index].item = itemName;
-    
+
     // Auto-fill price and UOM from item data
     const itemData = items.find(i => i.name.toLowerCase() === itemName.toLowerCase());
     if (itemData) {
@@ -59,7 +59,7 @@ export default function OrderForm({ items, onSubmit, loading }) {
       updated[index].uom = itemData.defaultUom || 'kg';
       updated[index].total = updated[index].qty * updated[index].price;
     }
-    
+
     setRows(updated);
   };
 
@@ -86,7 +86,7 @@ export default function OrderForm({ items, onSubmit, loading }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    
+
     const validRows = rows.filter(r => r.item && r.qty > 0);
     if (validRows.length === 0) {
       alert('Please add at least one item');
@@ -128,23 +128,25 @@ export default function OrderForm({ items, onSubmit, loading }) {
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <span style={{ fontSize: 13, fontWeight: 600, color: '#6b7280' }}>Item #{index + 1}</span>
-                <button
-                  type="button"
-                  onClick={() => removeRow(index)}
-                  style={{
-                    padding: '4px 10px',
-                    borderRadius: 6,
-                    border: 'none',
-                    background: '#fee2e2',
-                    color: '#dc2626',
-                    cursor: 'pointer',
-                    fontSize: 12
-                  }}
-                >
-                  Remove
-                </button>
+                {(index > 0 || rows.length > 1) && (
+                  <button
+                    type="button"
+                    onClick={() => removeRow(index)}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: 6,
+                      border: 'none',
+                      background: '#fee2e2',
+                      color: '#dc2626',
+                      cursor: 'pointer',
+                      fontSize: 12
+                    }}
+                  >
+                    Remove
+                  </button>
+                )}
               </div>
-              
+
               <div style={{ marginBottom: 12 }}>
                 <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: '#6b7280', fontWeight: 500 }}>
                   Select Item *
@@ -156,7 +158,7 @@ export default function OrderForm({ items, onSubmit, loading }) {
                   placeholder="Search items..."
                 />
               </div>
-              
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
                 <div>
                   <label style={{ display: 'block', marginBottom: 4, fontSize: 12, color: '#6b7280', fontWeight: 500 }}>
@@ -206,7 +208,7 @@ export default function OrderForm({ items, onSubmit, loading }) {
                   </select>
                 </div>
               </div>
-              
+
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 12, borderTop: '1px solid #e5e7eb' }}>
                 <div>
                   <span style={{ fontSize: 12, color: '#6b7280' }}>Price: </span>
@@ -228,7 +230,7 @@ export default function OrderForm({ items, onSubmit, loading }) {
               <tr style={{ background: '#f9fafb' }}>
                 <th style={thStyle}>Item</th>
                 <th style={{ ...thStyle, width: 100 }}>Qty</th>
-                <th style={{ ...thStyle, width: 80 }}>UOM</th>
+                <th style={{ ...thStyle, width: 120 }}>UOM</th>
                 <th style={{ ...thStyle, width: 120 }}>Price</th>
                 <th style={{ ...thStyle, width: 120 }}>Total</th>
                 <th style={{ ...thStyle, width: 60 }}></th>
@@ -297,13 +299,13 @@ export default function OrderForm({ items, onSubmit, loading }) {
         </div>
       )}
 
-      <div style={{ 
-        display: 'flex', 
+      <div style={{
+        display: 'flex',
         flexDirection: isMobile ? 'column' : 'row',
-        justifyContent: 'space-between', 
-        alignItems: isMobile ? 'stretch' : 'center', 
+        justifyContent: 'space-between',
+        alignItems: isMobile ? 'stretch' : 'center',
         gap: isMobile ? 12 : 0,
-        marginBottom: 20 
+        marginBottom: 20
       }}>
         <button
           type="button"
@@ -321,9 +323,9 @@ export default function OrderForm({ items, onSubmit, loading }) {
         >
           + Add Item
         </button>
-        
-        <div style={{ 
-          fontSize: isMobile ? 16 : 18, 
+
+        <div style={{
+          fontSize: isMobile ? 16 : 18,
           fontWeight: 700,
           textAlign: isMobile ? 'right' : 'left',
           padding: isMobile ? '12px 0' : 0,

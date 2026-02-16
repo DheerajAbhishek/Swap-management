@@ -5,6 +5,31 @@ import DatePeriodPicker from '../../components/Supply/DatePeriodPicker';
 import ReceivedItemsReport from '../../components/Supply/ReceivedItemsReport';
 import { formatCurrency, formatDateTime } from '../../utils/constants';
 import { orderService } from '../../services/orderService';
+import { franchiseService } from '../../services/franchiseService';
+
+// SVG Icons for dashboard stats
+const PendingIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="12 6 12 12 16 14" />
+  </svg>
+);
+
+const AcceptedIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+    <polyline points="22 4 12 14.01 9 11.01" />
+  </svg>
+);
+
+const DispatchedIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="1" y="3" width="15" height="13" />
+    <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
+    <circle cx="5.5" cy="18.5" r="2.5" />
+    <circle cx="18.5" cy="18.5" r="2.5" />
+  </svg>
+);
 
 // Franchise options - will be populated from orders
 const FRANCHISE_OPTIONS = [
@@ -24,6 +49,7 @@ export default function KitchenDashboard() {
   const { user } = useAuth();
   const [orders, setOrders] = useState([]);
   const [franchises, setFranchises] = useState(FRANCHISE_OPTIONS);
+  const [assignedFranchises, setAssignedFranchises] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const marginPercent = getMarginPercent();
@@ -41,31 +67,52 @@ export default function KitchenDashboard() {
   const [receivedItems, setReceivedItems] = useState([]);
   const [loadingItems, setLoadingItems] = useState(false);
 
-  // Fetch orders
+  // Fetch orders and franchises
   useEffect(() => {
-    const fetchOrders = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
-        const data = await orderService.getOrders();
-        setOrders(data);
 
-        // Extract unique franchises from orders
-        const uniqueFranchises = [...new Set(data.map(o => o.franchise_id))]
-          .filter(Boolean)
-          .map(id => {
-            const order = data.find(o => o.franchise_id === id);
-            return { id, name: order?.franchise_name || id };
-          });
-        setFranchises([{ id: 'all', name: 'All Franchises' }, ...uniqueFranchises]);
+        // Fetch orders and franchises in parallel
+        const [ordersData, franchisesData] = await Promise.all([
+          orderService.getOrders(),
+          franchiseService.getFranchises().catch(() => [])
+        ]);
+
+        setOrders(ordersData);
+
+        // Filter franchises assigned to this kitchen (vendor_id matches)
+        const vendorId = user?.vendor_id || user?.userId || user?.id;
+        const myFranchises = franchisesData.filter(f => f.vendor_id === vendorId);
+        setAssignedFranchises(myFranchises);
+
+        // Use franchises from API, fallback to extracting from orders if API fails
+        if (myFranchises && myFranchises.length > 0) {
+          const franchiseList = myFranchises.map(f => ({ id: f.id, name: f.name }));
+          setFranchises([{ id: 'all', name: 'All Franchises' }, ...franchiseList]);
+        } else if (franchisesData && franchisesData.length > 0) {
+          // Fallback to all franchises if none specifically assigned
+          const franchiseList = franchisesData.map(f => ({ id: f.id, name: f.name }));
+          setFranchises([{ id: 'all', name: 'All Franchises' }, ...franchiseList]);
+        } else {
+          // Fallback: Extract unique franchises from orders
+          const uniqueFranchises = [...new Set(ordersData.map(o => o.franchise_id))]
+            .filter(Boolean)
+            .map(id => {
+              const order = ordersData.find(o => o.franchise_id === id);
+              return { id, name: order?.franchise_name || id };
+            });
+          setFranchises([{ id: 'all', name: 'All Franchises' }, ...uniqueFranchises]);
+        }
       } catch (err) {
-        console.error('Failed to fetch orders:', err);
-        setError('Failed to load orders');
+        console.error('Failed to fetch data:', err);
+        setError('Failed to load dashboard data');
       } finally {
         setLoading(false);
       }
     };
-    fetchOrders();
-  }, []);
+    fetchData();
+  }, [user]);
 
   // Load received items when date range or franchise changes
   useEffect(() => {
@@ -129,9 +176,106 @@ export default function KitchenDashboard() {
         gap: 20,
         marginBottom: 32
       }}>
-        <StatCard icon="" label="Pending Orders" value={stats.pendingOrders} color="#f59e0b" />
-        <StatCard icon="" label="Accepted" value={stats.acceptedOrders} color="#3b82f6" />
-        <StatCard icon="" label="Dispatched Today" value={stats.dispatchedToday} color="#10b981" />
+        <StatCard icon={<PendingIcon />} label="Pending Orders" value={stats.pendingOrders} color="#f59e0b" />
+        <StatCard icon={<AcceptedIcon />} label="Accepted" value={stats.acceptedOrders} color="#3b82f6" />
+        <StatCard icon={<DispatchedIcon />} label="Dispatched Today" value={stats.dispatchedToday} color="#10b981" />
+      </div>
+
+      {/* Assigned Franchises */}
+      <div style={{
+        background: 'white',
+        borderRadius: 16,
+        padding: 24,
+        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+        marginBottom: 24
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+          <div style={{
+            width: 40,
+            height: 40,
+            borderRadius: 10,
+            background: '#dbeafe',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#2563eb'
+          }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              <polyline points="9 22 9 12 15 12 15 22" />
+            </svg>
+          </div>
+          <div>
+            <h2 style={{ fontSize: 18, fontWeight: 600, color: '#1f2937', margin: 0 }}>
+              Franchises You Supply
+            </h2>
+            <p style={{ color: '#6b7280', fontSize: 13, margin: 0 }}>
+              {assignedFranchises.length} franchise{assignedFranchises.length !== 1 ? 's' : ''} assigned to your kitchen
+            </p>
+          </div>
+        </div>
+
+        {assignedFranchises.length === 0 ? (
+          <div style={{
+            padding: 24,
+            textAlign: 'center',
+            color: '#6b7280',
+            background: '#f9fafb',
+            borderRadius: 12
+          }}>
+            <p style={{ margin: 0 }}>No franchises assigned yet. Contact admin for franchise assignments.</p>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
+            {assignedFranchises.map(franchise => (
+              <div key={franchise.id} style={{
+                padding: 16,
+                background: '#f9fafb',
+                borderRadius: 12,
+                border: '1px solid #e5e7eb'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 8,
+                    background: '#3b82f6',
+                    color: 'white',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 700,
+                    fontSize: 14
+                  }}>
+                    {franchise.name?.charAt(0)?.toUpperCase() || 'F'}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, color: '#1f2937', fontSize: 15 }}>{franchise.name}</div>
+                    <div style={{ fontSize: 12, color: '#6b7280' }}>{franchise.location || 'No location'}</div>
+                  </div>
+                  <div style={{
+                    padding: '4px 10px',
+                    borderRadius: 20,
+                    background: franchise.status === 'ACTIVE' ? '#d1fae5' : '#fee2e2',
+                    color: franchise.status === 'ACTIVE' ? '#065f46' : '#991b1b',
+                    fontSize: 11,
+                    fontWeight: 500
+                  }}>
+                    {franchise.status || 'ACTIVE'}
+                  </div>
+                </div>
+                {franchise.phone && (
+                  <div style={{ marginTop: 10, fontSize: 13, color: '#6b7280', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                    </svg>
+                    {franchise.phone}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Pending Orders */}

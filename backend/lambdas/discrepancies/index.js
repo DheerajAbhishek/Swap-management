@@ -62,12 +62,12 @@ async function getKitchenUsers(vendorId = null) {
     try {
         let filterExpression = '#role = :role OR #role = :staffRole';
         let expressionAttributeValues = { ':role': 'KITCHEN', ':staffRole': 'KITCHEN_STAFF' };
-        
+
         if (vendorId) {
             filterExpression = '(#role = :role OR #role = :staffRole) AND vendor_id = :vendorId';
             expressionAttributeValues[':vendorId'] = vendorId;
         }
-        
+
         const result = await dynamodb.send(new ScanCommand({
             TableName: USERS_TABLE,
             FilterExpression: filterExpression,
@@ -166,6 +166,7 @@ exports.handler = async (event) => {
                 difference: (body.ordered_qty || 0) - (body.received_qty || 0),
                 uom: body.uom,
                 notes: body.notes || '',
+                photos: body.photos || [], // Store photo URLs
                 reported_by: user.userId,
                 resolved: false,
                 created_at: new Date().toISOString()

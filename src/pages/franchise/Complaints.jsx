@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { complaintService } from '../../services/complaintService';
 import { vendorService } from '../../services/vendorService';
+import { photoService } from '../../services/photoService';
+import PhotoCapture from '../../components/PhotoCapture';
 
 /**
  * Complaints - Franchise page to submit and track complaints
@@ -20,7 +22,8 @@ export default function Complaints() {
     description: '',
     priority: 'MEDIUM',
     vendor_id: '',
-    order_id: ''
+    order_id: '',
+    photos: []
   });
 
   useEffect(() => {
@@ -50,11 +53,28 @@ export default function Complaints() {
     }
     setSubmitting(true);
     try {
+      // Upload photos to S3 first
+      let photoUrls = [];
+      if (newComplaint.photos && newComplaint.photos.length > 0) {
+        try {
+          photoUrls = await photoService.uploadPhotos(newComplaint.photos, 'complaints');
+        } catch (err) {
+          console.error('Failed to upload photos:', err);
+          alert('Failed to upload photos. Proceeding without photos.');
+        }
+      }
+
       // Add vendor name if vendor selected
       const vendor = vendors.find(v => v.id === newComplaint.vendor_id);
       const complaintData = {
         ...newComplaint,
-        vendor_name: vendor?.name || ''
+        vendor_name: vendor?.name || '',
+        photos: photoUrls,
+        attachments: newComplaint.photos.map((photo, idx) => ({
+          name: photo.name || `photo-${idx + 1}.jpg`,
+          data: photoUrls[idx] || photo.data,
+          type: photo.type || 'image/jpeg'
+        }))
       };
       await complaintService.createComplaint(complaintData);
       await loadData();
@@ -64,7 +84,8 @@ export default function Complaints() {
         description: '',
         priority: 'MEDIUM',
         vendor_id: '',
-        order_id: ''
+        order_id: '',
+        photos: []
       });
       setShowForm(false);
       alert('Complaint submitted successfully!');
@@ -250,6 +271,18 @@ export default function Complaints() {
             />
           </div>
 
+          <div style={{ marginBottom: 20 }}>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>Photos (Optional - Up to 3)</label>
+            <PhotoCapture
+              photos={newComplaint.photos}
+              onChange={(photos) => setNewComplaint({ ...newComplaint, photos })}
+              maxPhotos={3}
+              label="Add Photos"
+              required={false}
+              disabled={submitting}
+            />
+          </div>
+
           <div style={{ display: 'flex', gap: 12 }}>
             <button
               onClick={handleSubmit}
@@ -350,27 +383,28 @@ export default function Complaints() {
               <p style={{ margin: 0, color: '#4b5563', lineHeight: 1.6 }}>{selectedComplaint.description}</p>
             </div>
 
-            {/* Attachments/Images */}
-            {selectedComplaint.attachments && selectedComplaint.attachments.length > 0 && (
+            {/* Photos */}
+            {((selectedComplaint.photos && selectedComplaint.photos.length > 0) || (selectedComplaint.attachments && selectedComplaint.attachments.length > 0)) && (
               <div style={{ marginBottom: 20 }}>
-                <h4 style={{ margin: '0 0 12px 0', color: '#374151' }}>Attachments ({selectedComplaint.attachments.length})</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: 12 }}>
-                  {selectedComplaint.attachments.map((attachment, idx) => (
-                    <div 
-                      key={idx}
+                <h4 style={{ margin: '0 0 12px 0', color: '#374151' }}>Photos ({(selectedComplaint.photos || selectedComplaint.attachments || []).length})</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 12 }}>
+                  {(selectedComplaint.photos || []).map((photoUrl, idx) => (
+                    <div
+                      key={`photo-${idx}`}
                       style={{
                         position: 'relative',
                         paddingTop: '100%',
                         borderRadius: 8,
                         overflow: 'hidden',
-                        border: '1px solid #e5e7eb',
-                        cursor: 'pointer'
+                        border: '2px solid #e5e7eb',
+                        cursor: 'pointer',
+                        background: '#f9fafb'
                       }}
-                      onClick={() => window.open(attachment.data, '_blank')}
+                      onClick={() => window.open(photoUrl, '_blank')}
                     >
                       <img
-                        src={attachment.data}
-                        alt={attachment.name || `Image ${idx + 1}`}
+                        src={photoUrl}
+                        alt={`Photo ${idx + 1}`}
                         style={{
                           position: 'absolute',
                           top: 0,
@@ -378,6 +412,42 @@ export default function Complaints() {
                           width: '100%',
                           height: '100%',
                           objectFit: 'cover'
+                        }}
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.parentElement.innerHTML = '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#9ca3af;font-size:12px;">📷</div>';
+                        }}
+                      />
+                    </div>
+                  ))}
+                  {(selectedComplaint.attachments || []).map((attachment, idx) => (
+                    <div
+                      key={`attach-${idx}`}
+                      style={{
+                        position: 'relative',
+                        paddingTop: '100%',
+                        borderRadius: 8,
+                        overflow: 'hidden',
+                        border: '2px solid #e5e7eb',
+                        cursor: 'pointer',
+                        background: '#f9fafb'
+                      }}
+                      onClick={() => window.open(attachment.data, '_blank')}
+                    >
+                      <img
+                        src={attachment.data}
+                        alt={attachment.name || `Photo ${idx + 1}`}
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover'
+                        }}
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          e.target.parentElement.innerHTML = '<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);color:#9ca3af;font-size:12px;">📷</div>';
                         }}
                       />
                     </div>

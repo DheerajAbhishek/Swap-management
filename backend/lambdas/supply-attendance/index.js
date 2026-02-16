@@ -94,6 +94,57 @@ async function updateStaffScore(staffId, deduction, reason) {
     return { previousScore: currentScore, newScore, deduction, reason };
 }
 
+// Auto-checkout staff who haven't checked out after 12 hours
+async function autoCheckoutStaleRecords(attendanceRecords) {
+    const now = new Date();
+    const updatedRecords = [];
+
+    for (const record of attendanceRecords) {
+        // Skip if already checked out or no check-in time
+        if (record.checkout_time || !record.checkin_time) {
+            updatedRecords.push(record);
+            continue;
+        }
+
+        const checkinDate = new Date(record.checkin_time);
+        const hoursSinceCheckin = (now - checkinDate) / (1000 * 60 * 60);
+
+        // If more than 12 hours, auto-checkout
+        if (hoursSinceCheckin >= 12) {
+            const autoCheckoutTime = new Date(checkinDate.getTime() + (12 * 60 * 60 * 1000)).toISOString();
+
+            // Update the record in DynamoDB
+            await dynamodb.send(new UpdateCommand({
+                TableName: ATTENDANCE_TABLE,
+                Key: { id: record.id },
+                UpdateExpression: 'SET checkout_time = :checkout, shift_duration = :duration, #status = :status, updated_at = :updatedAt',
+                ExpressionAttributeNames: {
+                    '#status': 'status'
+                },
+                ExpressionAttributeValues: {
+                    ':checkout': autoCheckoutTime,
+                    ':duration': 12 * 60, // 12 hours in minutes
+                    ':status': 'AUTO_CHECKOUT',
+                    ':updatedAt': now.toISOString()
+                }
+            }));
+
+            // Apply NO_CHECKOUT score deduction
+            await updateStaffScore(record.staff_id, SCORE_DEDUCTIONS.NO_CHECKOUT, 'Auto-checkout after 12 hours');
+
+            // Update the record in our response
+            record.checkout_time = autoCheckoutTime;
+            record.shift_duration = 12 * 60; // 12 hours in minutes
+            record.status = 'AUTO_CHECKOUT';
+            record.updated_at = now.toISOString();
+        }
+
+        updatedRecords.push(record);
+    }
+
+    return updatedRecords;
+}
+
 exports.handler = async (event) => {
     console.log('Event:', JSON.stringify(event));
 
@@ -182,6 +233,9 @@ exports.handler = async (event) => {
             // Sort by date desc
             attendance.sort((a, b) => new Date(b.date) - new Date(a.date));
 
+            // Auto-checkout stale records (> 12 hours)
+            attendance = await autoCheckoutStaleRecords(attendance);
+
             return {
                 statusCode: 200,
                 headers,
@@ -213,7 +267,13 @@ exports.handler = async (event) => {
                 }
             }));
 
-            const attendance = result.Items?.[0] || null;
+            let attendance = result.Items?.[0] || null;
+
+            // Auto-checkout if needed
+            if (attendance) {
+                const processed = await autoCheckoutStaleRecords([attendance]);
+                attendance = processed[0];
+            }
 
             return {
                 statusCode: 200,
@@ -268,7 +328,7 @@ exports.handler = async (event) => {
             // Get attendance records
             let filterExp = '#date >= :startDate AND #date <= :endDate';
             let filterValues = { ':startDate': startDate, ':endDate': endDate };
-            
+
             if (targetFranchiseId) {
                 filterExp += ' AND franchise_id = :franchiseId';
                 filterValues[':franchiseId'] = targetFranchiseId;
@@ -281,12 +341,15 @@ exports.handler = async (event) => {
                 ExpressionAttributeValues: filterValues
             }));
 
-            const attendanceRecords = attendanceResult.Items || [];
+            let attendanceRecords = attendanceResult.Items || [];
+
+            // Auto-checkout stale records before building report
+            attendanceRecords = await autoCheckoutStaleRecords(attendanceRecords);
 
             // Build report
             const report = staffList.map(staff => {
                 const staffAttendance = attendanceRecords.filter(a => a.staff_id === staff.id);
-                
+
                 return {
                     staff_id: staff.id,
                     employee_id: staff.employee_id,
@@ -323,13 +386,13 @@ exports.handler = async (event) => {
             }
 
             const body = JSON.parse(event.body || '{}');
-            const { selfie_photo, shoes_photo } = body;
+            const { selfie_photo, shoes_photo, mesa_photo, standing_area_photo } = body;
 
-            if (!selfie_photo || !shoes_photo) {
+            if (!selfie_photo || !shoes_photo || !mesa_photo || !standing_area_photo) {
                 return {
                     statusCode: 400,
                     headers,
-                    body: JSON.stringify({ error: 'Both selfie and shoes photos are required' })
+                    body: JSON.stringify({ error: 'All 4 photos are required: selfie, shoes, mesa (kitchen overview), and standing area' })
                 };
             }
 
@@ -375,6 +438,8 @@ exports.handler = async (event) => {
                 checkin_time: now.toISOString(),
                 selfie_photo: selfie_photo,
                 shoes_photo: shoes_photo,
+                mesa_photo: mesa_photo,
+                standing_area_photo: standing_area_photo,
                 is_late: isLate,
                 checkout_time: null,
                 is_early_checkout: false,
@@ -472,8 +537,8 @@ exports.handler = async (event) => {
                 statusCode: 200,
                 headers,
                 body: JSON.stringify({
-                    message: isEarlyCheckout 
-                        ? `Checked out (Early - ${Math.round(shiftDuration * 10) / 10} hours, score deducted)` 
+                    message: isEarlyCheckout
+                        ? `Checked out (Early - ${Math.round(shiftDuration * 10) / 10} hours, score deducted)`
                         : `Checked out successfully (${Math.round(shiftDuration * 10) / 10} hours)`,
                     shiftDuration: Math.round(shiftDuration * 100) / 100,
                     isEarlyCheckout,

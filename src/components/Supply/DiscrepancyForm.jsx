@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import PhotoCapture from '../PhotoCapture';
 
 /**
  * DiscrepancyForm - Form for reporting quantity discrepancies
@@ -15,6 +16,7 @@ export default function DiscrepancyForm({ orderItems, onSubmit, loading }) {
       notes: ''
     }))
   );
+  const [photos, setPhotos] = useState([]);
 
   const handleReceivedQtyChange = (index, value) => {
     const updated = [...discrepancies];
@@ -51,7 +53,8 @@ export default function DiscrepancyForm({ orderItems, onSubmit, loading }) {
         orderItemId: d.orderItemId,
         receivedQty: d.receivedQty
       })),
-      discrepancies: itemsWithDiscrepancy
+      discrepancies: itemsWithDiscrepancy,
+      photos: photos
     });
   };
 
@@ -159,6 +162,20 @@ export default function DiscrepancyForm({ orderItems, onSubmit, loading }) {
           </div>
         </div>
       )}
+
+      {/* Photo Capture for Receipt */}
+      <div style={{ marginBottom: 20 }}>
+        <PhotoCapture
+          photos={photos}
+          onChange={setPhotos}
+          maxPhotos={5}
+          label="Received Items Photo"
+          disabled={loading}
+        />
+        <p style={{ fontSize: 12, color: '#6b7280', marginTop: -8 }}>
+          Take a photo of the received items for your records
+        </p>
+      </div>
 
       <button
         type="submit"

@@ -205,25 +205,49 @@ async function createComplaint(data, decoded) {
   // Determine franchise info based on role
   let franchiseId = decoded.franchise_id || data.franchise_id || '';
   let franchiseName = decoded.franchise_name || data.franchise_name || '';
-  
+  let vendorId = data.vendor_id || '';
+  let vendorName = data.vendor_name || '';
+
   // For Kitchen/Kitchen Staff, use order's franchise info if available
   if ((decoded.role === 'KITCHEN' || decoded.role === 'KITCHEN_STAFF') && !franchiseId) {
     franchiseId = data.franchise_id || '';
     franchiseName = data.franchise_name || '';
   }
-  
+
   // For Admin, use the data provided
   if (decoded.role === 'ADMIN') {
     franchiseId = data.franchise_id || '';
     franchiseName = data.franchise_name || '';
   }
 
+  // If vendor_id not provided and we have a franchise_id, look up the franchise's assigned vendor
+  if (!vendorId && franchiseId) {
+    try {
+      const franchiseResult = await dynamoDB.send(new GetCommand({
+        TableName: 'supply_franchises',
+        Key: { id: franchiseId }
+      }));
+      if (franchiseResult.Item) {
+        vendorId = franchiseResult.Item.vendor_id || '';
+        vendorName = franchiseResult.Item.vendor_name || '';
+      }
+    } catch (err) {
+      console.error('Failed to fetch franchise vendor info:', err);
+    }
+  }
+
+  // If still no vendor_id and user is franchise/franchise_staff, try from token
+  if (!vendorId && (decoded.role === 'FRANCHISE' || decoded.role === 'FRANCHISE_STAFF')) {
+    vendorId = decoded.vendor_id || '';
+    vendorName = decoded.vendor_name || '';
+  }
+
   const complaint = {
     id: `complaint-${Date.now()}`,
     franchise_id: franchiseId,
     franchise_name: franchiseName,
-    vendor_id: data.vendor_id || '', // The kitchen this complaint is about
-    vendor_name: data.vendor_name || '',
+    vendor_id: vendorId, // The kitchen this complaint is about
+    vendor_name: vendorName,
     category: data.category || 'GENERAL', // QUALITY, DELIVERY, QUANTITY, PACKAGING, GENERAL
     subject: data.subject,
     description: data.description,
@@ -231,7 +255,8 @@ async function createComplaint(data, decoded) {
     status: 'OPEN', // OPEN, IN_PROGRESS, RESOLVED, CLOSED
     order_id: data.order_id || '', // Optional: related order
     order_number: data.order_number || '', // Order number for display
-    attachments: data.attachments || [], // Can contain base64 images
+    photos: data.photos || [], // S3 URLs for photos
+    attachments: data.attachments || [], // Can contain photo info
     response: '',
     responded_by: '',
     responded_at: '',

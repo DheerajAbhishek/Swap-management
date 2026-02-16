@@ -74,13 +74,13 @@ async function getKitchenUsers(vendorId = null) {
     try {
         let filterExpression = '#role = :role OR #role = :staffRole';
         let expressionAttributeValues = { ':role': 'KITCHEN', ':staffRole': 'KITCHEN_STAFF' };
-        
+
         // If vendorId provided, filter to only that kitchen's users
         if (vendorId) {
             filterExpression = '(#role = :role OR #role = :staffRole) AND vendor_id = :vendorId';
             expressionAttributeValues[':vendorId'] = vendorId;
         }
-        
+
         const result = await dynamodb.send(new ScanCommand({
             TableName: USERS_TABLE,
             FilterExpression: filterExpression,
@@ -200,8 +200,12 @@ exports.handler = async (event) => {
                 orders = result.Items || [];
             } else if (user.role === 'KITCHEN' || user.role === 'KITCHEN_STAFF') {
                 // Kitchen sees orders that were placed TO them (based on order's vendor_id)
+                // Priority: vendor_id > kitchen_id > userId (the kitchen's own ID)
                 const vendorId = user.vendor_id || user.kitchen_id || user.userId;
-                
+
+                console.log('Kitchen user fetching orders with vendor_id:', vendorId);
+                console.log('User token data:', { vendor_id: user.vendor_id, kitchen_id: user.kitchen_id, userId: user.userId });
+
                 // Get orders where vendor_id matches this kitchen
                 const result = await dynamodb.send(new ScanCommand({
                     TableName: ORDERS_TABLE,
@@ -209,6 +213,20 @@ exports.handler = async (event) => {
                     ExpressionAttributeValues: { ':vendorId': vendorId }
                 }));
                 orders = result.Items || [];
+
+                // If no orders found, also try matching against userId directly as fallback
+                // This handles cases where vendor_id wasn't set correctly on older orders
+                if (orders.length === 0 && user.userId) {
+                    console.log('No orders with vendor_id, trying userId fallback:', user.userId);
+                    const fallbackResult = await dynamodb.send(new ScanCommand({
+                        TableName: ORDERS_TABLE,
+                        FilterExpression: 'vendor_id = :vendorId',
+                        ExpressionAttributeValues: { ':vendorId': user.userId }
+                    }));
+                    orders = fallbackResult.Items || [];
+                }
+
+                console.log('Found orders count:', orders.length);
             } else {
                 // Admin sees all orders
                 const result = await dynamodb.send(new ScanCommand({
@@ -256,6 +274,7 @@ exports.handler = async (event) => {
             // Get vendor info from franchise - store at order time for history
             let vendorId = '';
             let vendorName = '';
+            let vendorItems = [];
             try {
                 const franchiseResult = await dynamodb.send(new GetCommand({
                     TableName: 'supply_franchises',
@@ -265,17 +284,37 @@ exports.handler = async (event) => {
                     vendorId = franchiseResult.Item.vendor_id || '';
                     vendorName = franchiseResult.Item.vendor_name || '';
                 }
+
+                // Get vendor items to lookup vendor_price
+                if (vendorId) {
+                    const vendorResult = await dynamodb.send(new GetCommand({
+                        TableName: 'supply_vendors',
+                        Key: { id: vendorId }
+                    }));
+                    if (vendorResult.Item && vendorResult.Item.items) {
+                        vendorItems = vendorResult.Item.items;
+                    }
+                }
             } catch (err) {
                 console.log('Could not fetch franchise vendor info:', err);
             }
 
             // Calculate total
             let totalAmount = 0;
+            let totalVendorCost = 0;
             const orderItems = [];
 
             for (const item of (body.items || [])) {
                 const lineTotal = (item.quantity || 0) * (item.unit_price || 0);
                 totalAmount += lineTotal;
+
+                // Find vendor_price from vendor items by matching name
+                const vendorItem = vendorItems.find(vi =>
+                    vi.name.toLowerCase().trim() === item.item_name.toLowerCase().trim()
+                );
+                const vendorPrice = vendorItem?.vendor_price || 0;
+                const vendorCostLine = (item.quantity || 0) * vendorPrice;
+                totalVendorCost += vendorCostLine;
 
                 const orderItem = {
                     id: 'oi-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
@@ -284,8 +323,10 @@ exports.handler = async (event) => {
                     item_name: item.item_name,
                     ordered_qty: item.quantity,
                     uom: item.uom,
-                    unit_price: item.unit_price,
-                    line_total: lineTotal
+                    unit_price: item.unit_price, // franchise custom price
+                    vendor_price: vendorPrice, // vendor's cost (looked up from vendor items)
+                    line_total: lineTotal,
+                    vendor_cost_line: vendorCostLine // vendor's total cost for this line
                 };
 
                 orderItems.push(orderItem);
@@ -304,7 +345,8 @@ exports.handler = async (event) => {
                 vendor_id: vendorId, // Kitchen ID at order time
                 vendor_name: vendorName, // Kitchen name at order time
                 status: 'PLACED',
-                total_amount: totalAmount,
+                total_amount: totalAmount, // franchise_price total (what vendor charges)
+                total_vendor_cost: totalVendorCost, // vendor's total cost
                 created_at: new Date().toISOString(),
                 created_by: user.userId,
                 created_by_name: user.name,
@@ -325,7 +367,7 @@ exports.handler = async (event) => {
                         kitchenUser.id,
                         'ORDER_NEW',
                         'New Order Received',
-                        `Order ${orderNumber} from ${user.franchise_name} - Rs.${totalAmount.toFixed(2)}`,
+                        `Order ${orderNumber} from ${user.franchise_name} - Rs.${totalVendorCost.toFixed(2)}`,
                         '/kitchen/orders',
                         orderId
                     );
@@ -403,6 +445,7 @@ exports.handler = async (event) => {
             }
 
             const orderId = event.pathParameters?.id;
+            const body = JSON.parse(event.body || '{}');
 
             // Get order details first
             const orderResult = await dynamodb.send(new GetCommand({
@@ -411,17 +454,33 @@ exports.handler = async (event) => {
             }));
             const order = orderResult.Item;
 
+            // Build update expression with photos
+            let updateExpression = 'SET #status = :status, dispatched_at = :time, dispatched_by = :user, dispatched_by_name = :userName';
+            const expressionValues = {
+                ':status': 'DISPATCHED',
+                ':time': new Date().toISOString(),
+                ':user': user.userId,
+                ':userName': user.name
+            };
+
+            // Add dispatch photos if provided
+            if (body.dispatch_photos && body.dispatch_photos.length > 0) {
+                updateExpression += ', dispatch_photos = :photos';
+                expressionValues[':photos'] = body.dispatch_photos;
+            }
+
+            // Add dispatch notes if provided
+            if (body.dispatch_notes) {
+                updateExpression += ', dispatch_notes = :notes';
+                expressionValues[':notes'] = body.dispatch_notes;
+            }
+
             await dynamodb.send(new UpdateCommand({
                 TableName: ORDERS_TABLE,
                 Key: { id: orderId },
-                UpdateExpression: 'SET #status = :status, dispatched_at = :time, dispatched_by = :user, dispatched_by_name = :userName',
+                UpdateExpression: updateExpression,
                 ExpressionAttributeNames: { '#status': 'status' },
-                ExpressionAttributeValues: {
-                    ':status': 'DISPATCHED',
-                    ':time': new Date().toISOString(),
-                    ':user': user.userId,
-                    ':userName': user.name
-                }
+                ExpressionAttributeValues: expressionValues
             }));
 
             // Notify franchise
@@ -446,17 +505,35 @@ exports.handler = async (event) => {
         // PUT /orders/{id}/receive
         if (httpMethod === 'PUT' && path.includes('/receive')) {
             const orderId = event.pathParameters?.id;
+            const body = JSON.parse(event.body || '{}');
+
+            // Build update expression with photos
+            let updateExpression = 'SET #status = :status, received_at = :time, received_by = :user, received_by_name = :userName';
+            const expressionValues = {
+                ':status': 'RECEIVED',
+                ':time': new Date().toISOString(),
+                ':user': user.userId,
+                ':userName': user.name || 'Franchise'
+            };
+
+            // Add receive photos if provided
+            if (body.receive_photos && body.receive_photos.length > 0) {
+                updateExpression += ', receive_photos = :photos';
+                expressionValues[':photos'] = body.receive_photos;
+            }
+
+            // Add received items if provided
+            if (body.receivedItems) {
+                updateExpression += ', received_items = :items';
+                expressionValues[':items'] = body.receivedItems;
+            }
 
             await dynamodb.send(new UpdateCommand({
                 TableName: ORDERS_TABLE,
                 Key: { id: orderId },
-                UpdateExpression: 'SET #status = :status, received_at = :time, received_by = :user',
+                UpdateExpression: updateExpression,
                 ExpressionAttributeNames: { '#status': 'status' },
-                ExpressionAttributeValues: {
-                    ':status': 'RECEIVED',
-                    ':time': new Date().toISOString(),
-                    ':user': user.userId
-                }
+                ExpressionAttributeValues: expressionValues
             }));
 
             return {

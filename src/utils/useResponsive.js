@@ -27,12 +27,12 @@ export function useResponsive() {
   const isDesktop = windowSize.width > 768 && windowSize.width <= 1024;
   const isLargeDesktop = windowSize.width > 1024;
 
-  const breakpoint = isMobile 
-    ? 'mobile' 
-    : isTablet 
-      ? 'tablet' 
-      : isDesktop 
-        ? 'desktop' 
+  const breakpoint = isMobile
+    ? 'mobile'
+    : isTablet
+      ? 'tablet'
+      : isDesktop
+        ? 'desktop'
         : 'largeDesktop';
 
   return {
@@ -60,32 +60,32 @@ export function getResponsiveStyles(isMobile, isTablet) {
   return {
     // Container padding
     containerPadding: isMobile ? 12 : isTablet ? 16 : 24,
-    
+
     // Font sizes
     titleSize: isMobile ? 18 : isTablet ? 20 : 24,
     subtitleSize: isMobile ? 14 : isTablet ? 16 : 18,
     bodySize: isMobile ? 13 : 14,
     smallSize: isMobile ? 11 : 12,
-    
+
     // Spacing
     gapSmall: isMobile ? 8 : 12,
     gapMedium: isMobile ? 12 : 16,
     gapLarge: isMobile ? 16 : 24,
-    
+
     // Border radius
     radiusSmall: isMobile ? 6 : 8,
     radiusMedium: isMobile ? 10 : 12,
     radiusLarge: isMobile ? 12 : 16,
-    
+
     // Button padding
     buttonPadding: isMobile ? '8px 12px' : '10px 20px',
-    
+
     // Card padding
     cardPadding: isMobile ? 12 : isTablet ? 16 : 24,
-    
+
     // Input padding
     inputPadding: isMobile ? '8px 12px' : '10px 14px',
-    
+
     // Table cell padding
     tableCellPadding: isMobile ? '6px 8px' : isTablet ? '8px 12px' : '12px 16px'
   };
