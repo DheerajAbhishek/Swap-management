@@ -25,12 +25,15 @@ import KitchenViewComplaints from './pages/kitchen/ViewComplaints'
 import KitchenStaffManagement from './pages/kitchen/StaffManagement'
 import KitchenFinance from './pages/kitchen/Finance'
 import KitchenProfile from './pages/kitchen/Profile'
+import KitchenDailyEntry from './pages/kitchen/DailyEntry'
 import FranchiseDashboard from './pages/franchise/Dashboard'
 import FranchiseCreateOrder from './pages/franchise/CreateOrder'
+import FranchiseEditOrder from './pages/franchise/EditOrder'
 import FranchiseOrderHistory from './pages/franchise/OrderHistory'
 import FranchiseConfirmReceipt from './pages/franchise/ConfirmReceipt'
 import FranchiseDailyEntry from './pages/franchise/DailyEntry'
 import FranchiseComplaints from './pages/franchise/Complaints'
+import FranchiseViewDiscrepancies from './pages/franchise/ViewDiscrepancies'
 import FranchiseStaffManagement from './pages/franchise/StaffManagement'
 import FranchiseStaffAttendance from './pages/franchise/StaffAttendance'
 import AuditorDashboard from './pages/auditor/Dashboard'
@@ -43,9 +46,15 @@ import FranchiseStaffCreateOrder from './pages/franchise-staff/CreateOrder'
 import FranchiseStaffOrderHistory from './pages/franchise-staff/OrderHistory'
 import FranchiseStaffConfirmReceipt from './pages/franchise-staff/ConfirmReceipt'
 import FranchiseStaffDailyEntry from './pages/franchise-staff/DailyEntry'
+// Reuse franchise components for complaints and discrepancies
+import FranchiseStaffComplaints from './pages/franchise/Complaints'
+import FranchiseStaffViewDiscrepancies from './pages/franchise/ViewDiscrepancies'
 // Kitchen Staff pages
 import KitchenStaffDashboard from './pages/kitchen-staff/Dashboard'
 import KitchenStaffIncomingOrders from './pages/kitchen-staff/IncomingOrders'
+import KitchenStaffDailyEntry from './pages/kitchen-staff/DailyEntry'
+import KitchenStaffViewDiscrepancies from './pages/kitchen/ViewDiscrepancies'
+import KitchenStaffViewComplaints from './pages/kitchen/ViewComplaints'
 import Layout from './components/Layout'
 
 // Protected Route Component
@@ -162,10 +171,12 @@ export default function App() {
       }>
         <Route index element={<FranchiseDashboard />} />
         <Route path="create-order" element={<FranchiseCreateOrder />} />
+        <Route path="edit-order/:id" element={<FranchiseEditOrder />} />
         <Route path="daily-entry" element={<FranchiseDailyEntry />} />
         <Route path="daily-reports" element={<AdminDailyReports />} />
         <Route path="orders" element={<FranchiseOrderHistory />} />
         <Route path="complaints" element={<FranchiseComplaints />} />
+        <Route path="discrepancies" element={<FranchiseViewDiscrepancies />} />
         <Route path="confirm-receipt/:orderId" element={<FranchiseConfirmReceipt />} />
         <Route path="staff" element={<FranchiseStaffManagement />} />
         <Route path="staff-attendance" element={<FranchiseStaffAttendance />} />
@@ -193,6 +204,8 @@ export default function App() {
         <Route path="daily-entry" element={<FranchiseStaffDailyEntry />} />
         <Route path="create-order" element={<FranchiseStaffCreateOrder />} />
         <Route path="orders" element={<FranchiseStaffOrderHistory />} />
+        <Route path="complaints" element={<FranchiseStaffComplaints />} />
+        <Route path="discrepancies" element={<FranchiseStaffViewDiscrepancies />} />
         <Route path="confirm-receipt/:orderId" element={<FranchiseStaffConfirmReceipt />} />
       </Route>
 
@@ -204,6 +217,8 @@ export default function App() {
       }>
         <Route index element={<KitchenStaffDashboard />} />
         <Route path="orders" element={<KitchenStaffIncomingOrders />} />
+        <Route path="discrepancies" element={<KitchenStaffViewDiscrepancies />} />
+        <Route path="complaints" element={<KitchenStaffViewComplaints />} />
       </Route>
 
       {/* Catch all - redirect to login */}

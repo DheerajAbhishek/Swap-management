@@ -26,7 +26,8 @@ export default function FranchiseManagement() {
     phone: '',
     email: '',
     password: '',
-    vendor_id: '',
+    vendor_1_id: '',
+    vendor_2_id: '',
     royalty_percent: 5
   });
 
@@ -64,10 +65,14 @@ export default function FranchiseManagement() {
   const handleSaveEdit = async () => {
     setSaving(true);
     try {
-      // Add vendor name if vendor_id changed
-      if (editForm.vendor_id) {
-        const vendor = vendors.find(v => v.id === editForm.vendor_id);
-        editForm.vendor_name = vendor?.name || '';
+      // Add vendor names if changed
+      if (editForm.vendor_1_id) {
+        const vendor1 = vendors.find(v => v.id === editForm.vendor_1_id);
+        editForm.vendor_1_name = vendor1?.name || '';
+      }
+      if (editForm.vendor_2_id) {
+        const vendor2 = vendors.find(v => v.id === editForm.vendor_2_id);
+        editForm.vendor_2_name = vendor2?.name || '';
       }
       await franchiseService.updateFranchise(editingId, editForm);
       await loadData();
@@ -92,10 +97,14 @@ export default function FranchiseManagement() {
     }
     setSaving(true);
     try {
-      // Add vendor name
-      if (newFranchise.vendor_id) {
-        const vendor = vendors.find(v => v.id === newFranchise.vendor_id);
-        newFranchise.vendor_name = vendor?.name || '';
+      // Add vendor names
+      if (newFranchise.vendor_1_id) {
+        const vendor1 = vendors.find(v => v.id === newFranchise.vendor_1_id);
+        newFranchise.vendor_1_name = vendor1?.name || '';
+      }
+      if (newFranchise.vendor_2_id) {
+        const vendor2 = vendors.find(v => v.id === newFranchise.vendor_2_id);
+        newFranchise.vendor_2_name = vendor2?.name || '';
       }
       const result = await franchiseService.createFranchise(newFranchise);
       // Show generated credentials if returned
@@ -114,7 +123,8 @@ export default function FranchiseManagement() {
         phone: '',
         email: '',
         password: '',
-        vendor_id: '',
+        vendor_1_id: '',
+        vendor_2_id: '',
         royalty_percent: 5
       });
       setShowAddForm(false);
@@ -445,11 +455,11 @@ export default function FranchiseManagement() {
             />
             <div>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
-                Assigned Vendor (Cluster)
+                Vendor 1 - SFI (Semi-Finished)
               </label>
               <select
-                value={newFranchise.vendor_id}
-                onChange={(e) => setNewFranchise({ ...newFranchise, vendor_id: e.target.value })}
+                value={newFranchise.vendor_1_id}
+                onChange={(e) => setNewFranchise({ ...newFranchise, vendor_1_id: e.target.value })}
                 style={{
                   width: '100%',
                   padding: '10px 12px',
@@ -459,8 +469,30 @@ export default function FranchiseManagement() {
                   boxSizing: 'border-box'
                 }}
               >
-                <option value="">Select Vendor...</option>
-                {vendors.map(v => (
+                <option value="">Select SFI Vendor...</option>
+                {vendors.filter(v => v.vendor_type === 'SFI').map(v => (
+                  <option key={v.id} value={v.id}>{v.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                Vendor 2 - Raw Materials
+              </label>
+              <select
+                value={newFranchise.vendor_2_id}
+                onChange={(e) => setNewFranchise({ ...newFranchise, vendor_2_id: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: 8,
+                  border: '1px solid #d1d5db',
+                  fontSize: 14,
+                  boxSizing: 'border-box'
+                }}
+              >
+                <option value="">Select Raw Materials Vendor...</option>
+                {vendors.filter(v => v.vendor_type === 'RAW_MATERIALS').map(v => (
                   <option key={v.id} value={v.id}>{v.name}</option>
                 ))}
               </select>
@@ -549,11 +581,11 @@ export default function FranchiseManagement() {
                   />
                   <div>
                     <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
-                      Assigned Vendor
+                      Vendor 1 - SFI
                     </label>
                     <select
-                      value={editForm.vendor_id || ''}
-                      onChange={(e) => setEditForm({ ...editForm, vendor_id: e.target.value })}
+                      value={editForm.vendor_1_id || ''}
+                      onChange={(e) => setEditForm({ ...editForm, vendor_1_id: e.target.value })}
                       style={{
                         width: '100%',
                         padding: '10px 12px',
@@ -564,7 +596,29 @@ export default function FranchiseManagement() {
                       }}
                     >
                       <option value="">Select...</option>
-                      {vendors.map(v => (
+                      {vendors.filter(v => v.vendor_type === 'SFI').map(v => (
+                        <option key={v.id} value={v.id}>{v.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                      Vendor 2 - Raw Materials
+                    </label>
+                    <select
+                      value={editForm.vendor_2_id || ''}
+                      onChange={(e) => setEditForm({ ...editForm, vendor_2_id: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: 8,
+                        border: '1px solid #d1d5db',
+                        fontSize: 14,
+                        boxSizing: 'border-box'
+                      }}
+                    >
+                      <option value="">Select...</option>
+                      {vendors.filter(v => v.vendor_type === 'RAW_MATERIALS').map(v => (
                         <option key={v.id} value={v.id}>{v.name}</option>
                       ))}
                     </select>
@@ -578,6 +632,13 @@ export default function FranchiseManagement() {
                     label="Phone"
                     value={editForm.phone}
                     onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                  />
+                  <InputField
+                    label="Email (Username)"
+                    value={editForm.email}
+                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                    type="email"
+                    placeholder="Email address (used for login)"
                   />
                   <InputField
                     label="Royalty %"
@@ -639,18 +700,28 @@ export default function FranchiseManagement() {
                   </span>
                 </div>
 
-                {/* Assigned Vendor */}
-                <div style={{
-                  background: '#fef3c7',
-                  color: '#d97706',
-                  padding: '6px 12px',
-                  borderRadius: 8,
-                  fontSize: 13,
-                  fontWeight: 500,
-                  marginBottom: 12,
-                  display: 'inline-block'
-                }}>
-                  Vendor: {franchise.vendor_name || 'Not Assigned'}
+                {/* Assigned Vendors */}
+                <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                  <div style={{
+                    background: '#dbeafe',
+                    color: '#2563eb',
+                    padding: '6px 12px',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 500
+                  }}>
+                    SFI: {franchise.vendor_1_name || 'Not Assigned'}
+                  </div>
+                  <div style={{
+                    background: '#fef3c7',
+                    color: '#d97706',
+                    padding: '6px 12px',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 500
+                  }}>
+                    Raw: {franchise.vendor_2_name || 'Not Assigned'}
+                  </div>
                 </div>
 
                 {/* Details */}

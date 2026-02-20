@@ -59,16 +59,16 @@ exports.handler = async (event) => {
       return await createNotification(body);
     }
 
+    // PUT /notifications/read-all - Mark all as read (check this BEFORE /read)
+    if (method === 'PUT' && path.includes('/read-all')) {
+      return await markAllAsRead(user);
+    }
+
     // PUT /notifications/{id}/read - Mark as read
     if (method === 'PUT' && path.includes('/read')) {
       const pathParts = path.split('/');
       const notificationId = pathParts[pathParts.length - 2];
       return await markAsRead(user, notificationId);
-    }
-
-    // PUT /notifications/read-all - Mark all as read
-    if (method === 'PUT' && path.includes('/read-all')) {
-      return await markAllAsRead(user);
     }
 
     // DELETE /notifications/{id}

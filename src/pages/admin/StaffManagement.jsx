@@ -54,12 +54,26 @@ export default function AdminStaffManagement() {
   };
 
   const getRoleBadge = (role) => {
-    if (role === 'FRANCHISE_STAFF') {
+    if (role === 'FRANCHISE') {
       return (
         <span style={{
           padding: '4px 10px',
           background: '#dbeafe',
           color: '#1e40af',
+          borderRadius: 12,
+          fontSize: 12,
+          fontWeight: 600
+        }}>
+          Franchise Manager
+        </span>
+      );
+    }
+    if (role === 'FRANCHISE_STAFF') {
+      return (
+        <span style={{
+          padding: '4px 10px',
+          background: '#e0e7ff',
+          color: '#3730a3',
           borderRadius: 12,
           fontSize: 12,
           fontWeight: 500
@@ -68,11 +82,25 @@ export default function AdminStaffManagement() {
         </span>
       );
     }
+    if (role === 'KITCHEN') {
+      return (
+        <span style={{
+          padding: '4px 10px',
+          background: '#fef3c7',
+          color: '#92400e',
+          borderRadius: 12,
+          fontSize: 12,
+          fontWeight: 600
+        }}>
+          Kitchen Manager
+        </span>
+      );
+    }
     return (
       <span style={{
         padding: '4px 10px',
-        background: '#fef3c7',
-        color: '#92400e',
+        background: '#fed7aa',
+        color: '#7c2d12',
         borderRadius: 12,
         fontSize: 12,
         fontWeight: 500
@@ -124,7 +152,9 @@ export default function AdminStaffManagement() {
             }}
           >
             <option value="ALL">All Roles</option>
+            <option value="FRANCHISE">Franchise Manager</option>
             <option value="FRANCHISE_STAFF">Franchise Staff</option>
+            <option value="KITCHEN">Kitchen Manager</option>
             <option value="KITCHEN_STAFF">Kitchen Staff</option>
           </select>
         </div>
@@ -196,6 +226,15 @@ export default function AdminStaffManagement() {
           <div style={{ fontSize: 28, fontWeight: 700 }}>{staff.filter(s => s.status === 'ACTIVE').length}</div>
         </div>
         <div style={{
+          background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+          borderRadius: 12,
+          padding: 16,
+          color: 'white'
+        }}>
+          <div style={{ fontSize: 12, opacity: 0.9 }}>Franchise Managers</div>
+          <div style={{ fontSize: 28, fontWeight: 700 }}>{staff.filter(s => s.role === 'FRANCHISE').length}</div>
+        </div>
+        <div style={{
           background: 'linear-gradient(135deg, #6366f1, #4f46e5)',
           borderRadius: 12,
           padding: 16,
@@ -206,6 +245,15 @@ export default function AdminStaffManagement() {
         </div>
         <div style={{
           background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+          borderRadius: 12,
+          padding: 16,
+          color: 'white'
+        }}>
+          <div style={{ fontSize: 12, opacity: 0.9 }}>Kitchen Managers</div>
+          <div style={{ fontSize: 28, fontWeight: 700 }}>{staff.filter(s => s.role === 'KITCHEN').length}</div>
+        </div>
+        <div style={{
+          background: 'linear-gradient(135deg, #fb923c, #ea580c)',
           borderRadius: 12,
           padding: 16,
           color: 'white'

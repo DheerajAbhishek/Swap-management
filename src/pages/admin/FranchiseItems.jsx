@@ -13,7 +13,8 @@ export default function FranchiseItems() {
 
     const [franchise, setFranchise] = useState(null);
     const [items, setItems] = useState([]);
-    const [vendorItems, setVendorItems] = useState([]); // Items from assigned vendor
+    const [vendor1Items, setVendor1Items] = useState([]); // Items from vendor 1
+    const [vendor2Items, setVendor2Items] = useState([]); // Items from vendor 2
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [editingId, setEditingId] = useState(null);
@@ -23,10 +24,12 @@ export default function FranchiseItems() {
         name: '',
         category: '',
         unit: 'kg',
-        price: ''
+        price: '',
+        vendor_id: ''
     });
     const [searchTerm, setSearchTerm] = useState('');
     const [filterCategory, setFilterCategory] = useState('');
+    const [activeTab, setActiveTab] = useState('vendor1'); // 'vendor1' or 'vendor2' or 'all'
     const [showImportModal, setShowImportModal] = useState(false);
     const [selectedImportItems, setSelectedImportItems] = useState([]);
 
@@ -41,13 +44,21 @@ export default function FranchiseItems() {
             setFranchise(data);
             setItems(data.items || []);
 
-            // Load vendor items if franchise has assigned vendor
-            if (data.vendor_id) {
+            // Load vendor items from both vendors
+            if (data.vendor_1_id) {
                 try {
-                    const vendorData = await vendorService.getVendor(data.vendor_id);
-                    setVendorItems(vendorData.items || []);
+                    const vendor1Data = await vendorService.getVendor(data.vendor_1_id);
+                    setVendor1Items(vendor1Data.items || []);
                 } catch (e) {
-                    console.log('Could not load vendor items');
+                    console.log('Could not load vendor 1 items');
+                }
+            }
+            if (data.vendor_2_id) {
+                try {
+                    const vendor2Data = await vendorService.getVendor(data.vendor_2_id);
+                    setVendor2Items(vendor2Data.items || []);
+                } catch (e) {
+                    console.log('Could not load vendor 2 items');
                 }
             }
         } catch (err) {
@@ -59,8 +70,8 @@ export default function FranchiseItems() {
     };
 
     const handleAddItem = async () => {
-        if (!newItem.name || !newItem.price) {
-            alert('Please fill in item name and price');
+        if (!newItem.name || !newItem.price || !newItem.vendor_id) {
+            alert('Please fill in item name, price, and vendor');
             return;
         }
 
@@ -68,7 +79,7 @@ export default function FranchiseItems() {
         try {
             const addedItem = await franchiseService.addFranchiseItem(franchiseId, newItem);
             setItems([...items, addedItem]);
-            setNewItem({ name: '', category: '', unit: 'kg', price: '' });
+            setNewItem({ name: '', category: '', unit: 'kg', price: '', vendor_id: '' });
             setShowAddForm(false);
         } catch (err) {
             alert('Failed to add item: ' + err.message);
@@ -116,11 +127,13 @@ export default function FranchiseItems() {
 
         setSaving(true);
         try {
+            const currentVendorId = activeTab === 'vendor2' ? franchise.vendor_2_id : franchise.vendor_1_id;
             const itemsToAdd = selectedImportItems.map(vendorItem => ({
                 name: vendorItem.name,
                 category: vendorItem.category,
                 unit: vendorItem.unit,
-                price: vendorItem.franchise_price || vendorItem.vendor_price // Use franchise_price if available
+                price: vendorItem.franchise_price || vendorItem.vendor_price, // Use franchise_price if available
+                vendor_id: currentVendorId
             }));
 
             for (const item of itemsToAdd) {
@@ -148,16 +161,20 @@ export default function FranchiseItems() {
     // Get unique categories
     const categories = [...new Set(items.map(item => item.category).filter(Boolean))];
 
-    // Filter items
+    // Filter items based on tab and search
     const filteredItems = items.filter(item => {
         const matchesSearch = !searchTerm ||
             item.name.toLowerCase().includes(searchTerm.toLowerCase());
         const matchesCategory = !filterCategory || item.category === filterCategory;
-        return matchesSearch && matchesCategory;
+        const matchesTab = activeTab === 'all' ||
+            (activeTab === 'vendor1' && item.vendor_id === franchise?.vendor_1_id) ||
+            (activeTab === 'vendor2' && item.vendor_id === franchise?.vendor_2_id);
+        return matchesSearch && matchesCategory && matchesTab;
     });
 
     // Get vendor items not already in franchise
-    const availableVendorItems = vendorItems.filter(
+    const currentVendorItems = activeTab === 'vendor2' ? vendor2Items : vendor1Items;
+    const availableVendorItems = currentVendorItems.filter(
         vi => !items.some(fi => fi.name.toLowerCase() === vi.name.toLowerCase())
     );
 
@@ -192,15 +209,22 @@ export default function FranchiseItems() {
                         </h1>
                         <p style={{ color: '#6b7280', marginTop: 4 }}>
                             Manage item prices for this franchise • {items.length} items
-                            {franchise?.vendor_name && (
-                                <span style={{ marginLeft: 8, color: '#f59e0b' }}>
-                                    (Vendor: {franchise.vendor_name})
+                        </p>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                            {franchise?.vendor_1_name && (
+                                <span style={{ fontSize: 12, color: '#2563eb', background: '#dbeafe', padding: '4px 10px', borderRadius: 6 }}>
+                                    SFI: {franchise.vendor_1_name}
                                 </span>
                             )}
-                        </p>
+                            {franchise?.vendor_2_name && (
+                                <span style={{ fontSize: 12, color: '#d97706', background: '#fef3c7', padding: '4px 10px', borderRadius: 6 }}>
+                                    Raw: {franchise.vendor_2_name}
+                                </span>
+                            )}
+                        </div>
                     </div>
                     <div style={{ display: 'flex', gap: 12 }}>
-                        {vendorItems.length > 0 && (
+                        {(vendor1Items.length > 0 || vendor2Items.length > 0) && (
                             <button
                                 onClick={() => setShowImportModal(true)}
                                 style={{
@@ -265,6 +289,70 @@ export default function FranchiseItems() {
                     <strong>Franchise Price</strong> - This is the price the franchise pays when ordering items.
                     Set custom prices for each franchise regardless of which vendor supplies them.
                 </span>
+            </div>
+
+            {/* Vendor Tabs */}
+            <div style={{
+                display: 'flex',
+                gap: 8,
+                marginBottom: 24,
+                background: 'white',
+                padding: '8px',
+                borderRadius: 12,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
+            }}>
+                <button
+                    onClick={() => setActiveTab('all')}
+                    style={{
+                        flex: 1,
+                        padding: '12px 20px',
+                        borderRadius: 8,
+                        border: 'none',
+                        background: activeTab === 'all' ? '#10b981' : 'transparent',
+                        color: activeTab === 'all' ? 'white' : '#6b7280',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s'
+                    }}
+                >
+                    All Items ({items.length})
+                </button>
+                {franchise?.vendor_1_id && (
+                    <button
+                        onClick={() => setActiveTab('vendor1')}
+                        style={{
+                            flex: 1,
+                            padding: '12px 20px',
+                            borderRadius: 8,
+                            border: 'none',
+                            background: activeTab === 'vendor1' ? '#2563eb' : 'transparent',
+                            color: activeTab === 'vendor1' ? 'white' : '#6b7280',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s'
+                        }}
+                    >
+                        🍳 {franchise.vendor_1_name} ({items.filter(i => i.vendor_id === franchise.vendor_1_id).length})
+                    </button>
+                )}
+                {franchise?.vendor_2_id && (
+                    <button
+                        onClick={() => setActiveTab('vendor2')}
+                        style={{
+                            flex: 1,
+                            padding: '12px 20px',
+                            borderRadius: 8,
+                            border: 'none',
+                            background: activeTab === 'vendor2' ? '#d97706' : 'transparent',
+                            color: activeTab === 'vendor2' ? 'white' : '#6b7280',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            transition: 'all 0.2s'
+                        }}
+                    >
+                        🥬 {franchise.vendor_2_name} ({items.filter(i => i.vendor_id === franchise.vendor_2_id).length})
+                    </button>
+                )}
             </div>
 
             {/* Search and Filter */}
@@ -356,6 +444,22 @@ export default function FranchiseItems() {
                             </select>
                         </div>
                         <div>
+                            <label style={labelStyle}>Vendor *</label>
+                            <select
+                                value={newItem.vendor_id}
+                                onChange={(e) => setNewItem({ ...newItem, vendor_id: e.target.value })}
+                                style={inputStyle}
+                            >
+                                <option value="">Select Vendor...</option>
+                                {franchise?.vendor_1_id && (
+                                    <option value={franchise.vendor_1_id}>{franchise.vendor_1_name} (SFI)</option>
+                                )}
+                                {franchise?.vendor_2_id && (
+                                    <option value={franchise.vendor_2_id}>{franchise.vendor_2_name} (Raw)</option>
+                                )}
+                            </select>
+                        </div>
+                        <div>
                             <label style={labelStyle}>Price (₹) *</label>
                             <input
                                 type="number"
@@ -384,7 +488,7 @@ export default function FranchiseItems() {
                             {saving ? 'Adding...' : 'Add Item'}
                         </button>
                         <button
-                            onClick={() => { setShowAddForm(false); setNewItem({ name: '', category: '', unit: 'kg', price: '' }); }}
+                            onClick={() => { setShowAddForm(false); setNewItem({ name: '', category: '', unit: 'kg', price: '', vendor_id: '' }); }}
                             style={{
                                 padding: '10px 20px',
                                 borderRadius: 8,
@@ -413,6 +517,7 @@ export default function FranchiseItems() {
                         <tr style={{ background: '#f9fafb' }}>
                             <th style={thStyle}>Item Name</th>
                             <th style={thStyle}>Category</th>
+                            <th style={thStyle}>Vendor</th>
                             <th style={thStyle}>Unit</th>
                             <th style={{ ...thStyle, textAlign: 'right', color: '#10b981' }}>Price</th>
                             <th style={{ ...thStyle, width: 120 }}>Actions</th>
@@ -421,7 +526,7 @@ export default function FranchiseItems() {
                     <tbody>
                         {filteredItems.length === 0 ? (
                             <tr>
-                                <td colSpan="5" style={{ ...tdStyle, textAlign: 'center', color: '#6b7280', padding: 40 }}>
+                                <td colSpan="6" style={{ ...tdStyle, textAlign: 'center', color: '#6b7280', padding: 40 }}>
                                     {items.length === 0 ? 'No items added yet' : 'No items match your search'}
                                 </td>
                             </tr>
@@ -447,6 +552,21 @@ export default function FranchiseItems() {
                                                 <datalist id="edit-categories">
                                                     {categories.map(cat => <option key={cat} value={cat} />)}
                                                 </datalist>
+                                            </td>
+                                            <td style={tdStyle}>
+                                                <select
+                                                    value={editForm.vendor_id || ''}
+                                                    onChange={(e) => setEditForm({ ...editForm, vendor_id: e.target.value })}
+                                                    style={tableInputStyle}
+                                                >
+                                                    <option value="">Select...</option>
+                                                    {franchise?.vendor_1_id && (
+                                                        <option value={franchise.vendor_1_id}>{franchise.vendor_1_name}</option>
+                                                    )}
+                                                    {franchise?.vendor_2_id && (
+                                                        <option value={franchise.vendor_2_id}>{franchise.vendor_2_name}</option>
+                                                    )}
+                                                </select>
                                             </td>
                                             <td style={tdStyle}>
                                                 <select
@@ -499,6 +619,22 @@ export default function FranchiseItems() {
                                                     {item.category || '-'}
                                                 </span>
                                             </td>
+                                            <td style={tdStyle}>
+                                                <span style={{
+                                                    background: item.vendor_id === franchise?.vendor_1_id ? '#dbeafe' : '#fef3c7',
+                                                    color: item.vendor_id === franchise?.vendor_1_id ? '#2563eb' : '#d97706',
+                                                    padding: '4px 8px',
+                                                    borderRadius: 4,
+                                                    fontSize: 12,
+                                                    fontWeight: 500
+                                                }}>
+                                                    {item.vendor_id === franchise?.vendor_1_id 
+                                                        ? franchise.vendor_1_name 
+                                                        : item.vendor_id === franchise?.vendor_2_id 
+                                                        ? franchise.vendor_2_name 
+                                                        : 'Unknown'}
+                                                </span>
+                                            </td>
                                             <td style={tdStyle}>{item.unit}</td>
                                             <td style={{ ...tdStyle, textAlign: 'right' }}>
                                                 <span style={{
@@ -549,7 +685,11 @@ export default function FranchiseItems() {
                     }}>
                         <h2 style={{ margin: '0 0 8px 0' }}>Import Items from Vendor</h2>
                         <p style={{ color: '#6b7280', marginBottom: 20 }}>
-                            Select items from <strong>{franchise?.vendor_name}</strong> to import with custom prices
+                            Select items from <strong>
+                                {activeTab === 'vendor2' 
+                                    ? franchise?.vendor_2_name 
+                                    : franchise?.vendor_1_name}
+                            </strong> to import with custom prices
                         </p>
 
                         {availableVendorItems.length === 0 ? (
@@ -557,8 +697,40 @@ export default function FranchiseItems() {
                                 All vendor items have already been added
                             </div>
                         ) : (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
-                                {availableVendorItems.map(item => (
+                            <div>
+                                {/* Select All Checkbox */}
+                                <label
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 12,
+                                        padding: 12,
+                                        background: '#f0f9ff',
+                                        borderRadius: 8,
+                                        cursor: 'pointer',
+                                        border: '2px solid #3b82f6',
+                                        marginBottom: 12
+                                    }}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedImportItems.length === availableVendorItems.length}
+                                        onChange={(e) => {
+                                            if (e.target.checked) {
+                                                setSelectedImportItems([...availableVendorItems]);
+                                            } else {
+                                                setSelectedImportItems([]);
+                                            }
+                                        }}
+                                        style={{ cursor: 'pointer' }}
+                                    />
+                                    <div style={{ fontWeight: 600, color: '#1e40af', flex: 1 }}>
+                                        Select All ({availableVendorItems.length} items)
+                                    </div>
+                                </label>
+                                
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+                                    {availableVendorItems.map(item => (
                                     <label
                                         key={item.id}
                                         style={{
@@ -595,6 +767,7 @@ export default function FranchiseItems() {
                                         </div>
                                     </label>
                                 ))}
+                            </div>
                             </div>
                         )}
 

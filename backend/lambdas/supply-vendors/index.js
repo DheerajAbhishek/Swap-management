@@ -74,6 +74,20 @@ exports.handler = async (event) => {
 
     // Route handling
     if (method === 'GET') {
+      // GET /vendors/:id/franchises - Get franchises for this vendor with stats
+      if (pathParts[2] === 'franchises') {
+        const vendorId = pathParts[1];
+        if (decoded.role === 'KITCHEN') {
+          const userVendorId = decoded.vendor_id || decoded.userId;
+          if (vendorId !== userVendorId) {
+            return { statusCode: 403, headers, body: JSON.stringify({ error: 'Can only view own franchises' }) };
+          }
+        } else if (decoded.role !== 'ADMIN' && decoded.role !== 'AUDITOR') {
+          return { statusCode: 403, headers, body: JSON.stringify({ error: 'Access denied' }) };
+        }
+        return await getVendorFranchises(vendorId);
+      }
+
       // GET /vendors/:id/items - Get vendor items for franchise (franchise_price only)
       if (pathParts[2] === 'items' && (decoded.role === 'FRANCHISE' || decoded.role === 'FRANCHISE_STAFF')) {
         const vendorId = pathParts[1];
@@ -216,6 +230,70 @@ async function getVendor(vendorId) {
   };
 }
 
+// Get franchises for this vendor with stats
+async function getVendorFranchises(vendorId) {
+  // Get all franchises
+  const franchisesResult = await dynamoDB.send(new ScanCommand({
+    TableName: 'supply_franchises'
+  }));
+
+  // Filter franchises that have this vendor as vendor_1 or vendor_2
+  const franchises = (franchisesResult.Items || []).filter(franchise => {
+    return franchise.vendor_1_id === vendorId || franchise.vendor_2_id === vendorId;
+  });
+
+  // Get orders for stats
+  const ordersResult = await dynamoDB.send(new ScanCommand({
+    TableName: 'supply_orders'
+  }));
+
+  const allOrders = ordersResult.Items || [];
+
+  // Calculate stats for each franchise
+  const franchisesWithStats = franchises.map(franchise => {
+    const franchiseOrders = allOrders.filter(order => 
+      order.franchise_id === franchise.id && order.vendor_id === vendorId
+    );
+
+    const totalOrders = franchiseOrders.length;
+    const pendingOrders = franchiseOrders.filter(o => o.status === 'PENDING').length;
+    const completedOrders = franchiseOrders.filter(o => o.status === 'COMPLETED' || o.status === 'CONFIRMED').length;
+
+    // Calculate total revenue from completed orders
+    const totalRevenue = franchiseOrders
+      .filter(o => o.status === 'COMPLETED' || o.status === 'CONFIRMED')
+      .reduce((sum, order) => sum + (parseFloat(order.total_amount) || 0), 0);
+
+    // Get last order date
+    const lastOrderDate = franchiseOrders.length > 0
+      ? franchiseOrders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0].created_at
+      : null;
+
+    // Determine vendor slot (1 or 2)
+    const vendorSlot = franchise.vendor_1_id === vendorId ? 1 : 2;
+    const vendorSlotName = vendorSlot === 1 ? 'SFI' : 'RAW_MATERIALS';
+
+    return {
+      ...franchise,
+      vendor_slot: vendorSlot,
+      vendor_slot_name: vendorSlotName,
+      stats: {
+        total_orders: totalOrders,
+        pending_orders: pendingOrders,
+        completed_orders: completedOrders,
+        total_revenue: totalRevenue,
+        last_order_date: lastOrderDate
+      }
+    };
+  });
+
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify(franchisesWithStats)
+  };
+}
+
 // Create vendor
 async function createVendor(data) {
   if (!data.email) {
@@ -230,6 +308,7 @@ async function createVendor(data) {
     location: data.location || '',
     phone: data.phone || '',
     email: data.email,
+    vendor_type: data.vendor_type || 'SFI', // 'SFI' or 'RAW_MATERIALS'
     margin_percent: data.margin_percent || 5,
     // Bank details
     bank_name: data.bank_name || '',
@@ -288,7 +367,7 @@ async function updateVendor(vendorId, data) {
   const expressionAttributeNames = {};
   const expressionAttributeValues = {};
 
-  const fields = ['name', 'owner_name', 'location', 'phone', 'email', 'margin_percent', 'status', 'items', 'bank_name', 'bank_location', 'account_number', 'ifsc_code', 'account_holder_name'];
+  const fields = ['name', 'owner_name', 'location', 'phone', 'email', 'vendor_type', 'margin_percent', 'status', 'items', 'bank_name', 'bank_location', 'account_number', 'ifsc_code', 'account_holder_name'];
 
   fields.forEach(field => {
     if (data[field] !== undefined) {
@@ -310,6 +389,44 @@ async function updateVendor(vendorId, data) {
     ExpressionAttributeValues: expressionAttributeValues,
     ReturnValues: 'ALL_NEW'
   }));
+
+  // Also update the corresponding user record in supply_users table
+  // This keeps email, name, and vendor_name in sync for login
+  const userUpdateExpressions = [];
+  const userExpressionAttributeNames = {};
+  const userExpressionAttributeValues = {};
+
+  if (data.email !== undefined) {
+    userUpdateExpressions.push('#email = :email');
+    userExpressionAttributeNames['#email'] = 'email';
+    userExpressionAttributeValues[':email'] = data.email;
+  }
+
+  if (data.name !== undefined) {
+    userUpdateExpressions.push('#name = :name');
+    userExpressionAttributeNames['#name'] = 'name';
+    userExpressionAttributeValues[':name'] = data.name;
+    
+    // Also update vendor_name field
+    userUpdateExpressions.push('#vendor_name = :vendor_name');
+    userExpressionAttributeNames['#vendor_name'] = 'vendor_name';
+    userExpressionAttributeValues[':vendor_name'] = data.name;
+  }
+
+  // Always update the updated_at timestamp
+  if (userUpdateExpressions.length > 0) {
+    userUpdateExpressions.push('#updated_at = :updated_at');
+    userExpressionAttributeNames['#updated_at'] = 'updated_at';
+    userExpressionAttributeValues[':updated_at'] = new Date().toISOString();
+
+    await dynamoDB.send(new UpdateCommand({
+      TableName: USERS_TABLE,
+      Key: { id: vendorId },
+      UpdateExpression: `SET ${userUpdateExpressions.join(', ')}`,
+      ExpressionAttributeNames: userExpressionAttributeNames,
+      ExpressionAttributeValues: userExpressionAttributeValues
+    }));
+  }
 
   return {
     statusCode: 200,

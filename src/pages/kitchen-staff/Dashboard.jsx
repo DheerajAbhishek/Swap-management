@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Link } from 'react-router-dom';
 import { orderService } from '../../services/orderService';
+import { useNotificationEvents } from '../../context/NotificationContext';
 
 /**
  * Kitchen Staff Dashboard
@@ -11,6 +12,7 @@ import { orderService } from '../../services/orderService';
  */
 export default function KitchenStaffDashboard() {
   const { user } = useAuth();
+  const { subscribe } = useNotificationEvents();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -31,7 +33,15 @@ export default function KitchenStaffDashboard() {
       }
     };
     fetchOrders();
-  }, []);
+
+    // Subscribe to order-related notifications for auto-refresh
+    const unsubscribe = subscribe(['ORDER_STATUS', 'ORDER_NEW'], () => {
+      console.log('🔄 Refreshing orders due to notification');
+      fetchOrders();
+    });
+
+    return unsubscribe;
+  }, [subscribe]);
 
   // Calculate stats (no financial data)
   const stats = {

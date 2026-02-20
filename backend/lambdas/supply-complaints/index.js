@@ -86,9 +86,9 @@ exports.handler = async (event) => {
     }
 
     if (method === 'PUT') {
-      // ADMIN and KITCHEN can update complaint status
-      if (decoded.role !== 'ADMIN' && decoded.role !== 'KITCHEN') {
-        return { statusCode: 403, headers, body: JSON.stringify({ error: 'Only admin or kitchen can update complaints' }) };
+      // ADMIN, KITCHEN, and KITCHEN_STAFF can update complaint status
+      if (decoded.role !== 'ADMIN' && decoded.role !== 'KITCHEN' && decoded.role !== 'KITCHEN_STAFF') {
+        return { statusCode: 403, headers, body: JSON.stringify({ error: 'Only admin, kitchen, or kitchen staff can update complaints' }) };
       }
       const complaintId = pathParts[1];
       const body = JSON.parse(event.body || '{}');

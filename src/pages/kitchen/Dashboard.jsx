@@ -81,9 +81,11 @@ export default function KitchenDashboard() {
 
         setOrders(ordersData);
 
-        // Filter franchises assigned to this kitchen (vendor_id matches)
+        // Filter franchises assigned to this kitchen (vendor_1_id or vendor_2_id matches)
         const vendorId = user?.vendor_id || user?.userId || user?.id;
-        const myFranchises = franchisesData.filter(f => f.vendor_id === vendorId);
+        const myFranchises = franchisesData.filter(f => 
+          f.vendor_1_id === vendorId || f.vendor_2_id === vendorId
+        );
         setAssignedFranchises(myFranchises);
 
         // Use franchises from API, fallback to extracting from orders if API fails

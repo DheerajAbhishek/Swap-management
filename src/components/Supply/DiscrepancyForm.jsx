@@ -194,7 +194,7 @@ export default function DiscrepancyForm({ orderItems, onSubmit, loading }) {
           cursor: loading ? 'not-allowed' : 'pointer'
         }}
       >
-        {loading ? 'Submitting...' : hasAnyDiscrepancy ? 'Confirm & Report Discrepancy' : 'Confirm Receipt'}
+        {loading ? 'Submitting...' : hasAnyDiscrepancy ? 'Report Discrepancy' : 'Confirm Receipt'}
       </button>
     </form>
   );

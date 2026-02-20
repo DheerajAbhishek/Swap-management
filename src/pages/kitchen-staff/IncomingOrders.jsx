@@ -4,6 +4,7 @@ import { orderService } from '../../services/orderService';
 import ToastNotification from '../../components/ToastNotification';
 import OrderComplaintModal from '../../components/Supply/OrderComplaintModal';
 import DispatchModal from '../../components/Supply/DispatchModal';
+import { useNotificationEvents } from '../../context/NotificationContext';
 
 /**
  * Kitchen Staff Incoming Orders
@@ -12,6 +13,7 @@ import DispatchModal from '../../components/Supply/DispatchModal';
  */
 export default function KitchenStaffIncomingOrders() {
   const { user } = useAuth();
+  const { subscribe } = useNotificationEvents();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -24,7 +26,15 @@ export default function KitchenStaffIncomingOrders() {
 
   useEffect(() => {
     fetchOrders();
-  }, []);
+
+    // Subscribe to order-related notifications for auto-refresh
+    const unsubscribe = subscribe(['ORDER_STATUS', 'ORDER_NEW'], () => {
+      console.log('🔄 Refreshing orders due to notification');
+      fetchOrders();
+    });
+
+    return unsubscribe;
+  }, [subscribe]);
 
   const fetchOrders = async () => {
     try {
@@ -269,7 +279,6 @@ export default function KitchenStaffIncomingOrders() {
                     <thead>
                       <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                         <th style={{ textAlign: 'left', padding: '8px 0', fontSize: 12, color: '#6b7280' }}>Item</th>
-                        <th style={{ textAlign: 'center', padding: '8px 0', fontSize: 12, color: '#6b7280' }}>Category</th>
                         <th style={{ textAlign: 'center', padding: '8px 0', fontSize: 12, color: '#6b7280' }}>Quantity</th>
                         <th style={{ textAlign: 'center', padding: '8px 0', fontSize: 12, color: '#6b7280' }}>Unit</th>
                       </tr>
@@ -277,10 +286,9 @@ export default function KitchenStaffIncomingOrders() {
                     <tbody>
                       {order.items?.map((item, idx) => (
                         <tr key={idx} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                          <td style={{ padding: '12px 0', fontWeight: 500 }}>{item.name}</td>
-                          <td style={{ textAlign: 'center', padding: '12px 0', color: '#6b7280' }}>{item.category}</td>
-                          <td style={{ textAlign: 'center', padding: '12px 0', fontWeight: 600 }}>{item.quantity}</td>
-                          <td style={{ textAlign: 'center', padding: '12px 0', color: '#6b7280' }}>{item.unit}</td>
+                          <td style={{ padding: '12px 0', fontWeight: 500 }}>{item.item_name}</td>
+                          <td style={{ textAlign: 'center', padding: '12px 0', fontWeight: 600 }}>{item.ordered_qty}</td>
+                          <td style={{ textAlign: 'center', padding: '12px 0', color: '#6b7280' }}>{item.uom}</td>
                         </tr>
                       ))}
                     </tbody>

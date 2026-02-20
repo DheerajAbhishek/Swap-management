@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import StatusBadge from '../../components/Supply/StatusBadge';
 import { formatCurrency, formatDateTime } from '../../utils/constants';
-import orderService from '../../services/orderService';
+import { orderService } from '../../services/orderService';
 import OrderComplaintModal from '../../components/Supply/OrderComplaintModal';
 import { useAuth } from '../../context/AuthContext';
+import { useNotificationEvents } from '../../context/NotificationContext';
 
 // Photo Gallery Component for displaying order photos
 function PhotoGallery({ photos, title }) {
@@ -67,28 +68,67 @@ function PhotoGallery({ photos, title }) {
  */
 export default function OrderHistory() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const { subscribe } = useNotificationEvents();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filterStatus, setFilterStatus] = useState('');
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [complaintModal, setComplaintModal] = useState({ open: false, order: null });
+  const [deletingOrderId, setDeletingOrderId] = useState(null);
+
+  const fetchOrders = async () => {
+    try {
+      setLoading(true);
+      const data = await orderService.getOrders();
+      setOrders(data);
+    } catch (err) {
+      setError(err.message);
+      console.error('Failed to fetch orders:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteOrder = async (orderId) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+
+    const modifyCheck = orderService.canModifyOrder(order);
+    if (!modifyCheck.allowed) {
+      alert(modifyCheck.reason);
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to delete order ${order.order_number}? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      setDeletingOrderId(orderId);
+      await orderService.deleteOrder(orderId);
+      await fetchOrders(); // Refresh the list
+      alert('Order deleted successfully');
+    } catch (err) {
+      alert(`Failed to delete order: ${err.message}`);
+      console.error('Failed to delete order:', err);
+    } finally {
+      setDeletingOrderId(null);
+    }
+  };
 
   useEffect(() => {
-    const fetchOrders = async () => {
-      try {
-        setLoading(true);
-        const data = await orderService.getOrders();
-        setOrders(data);
-      } catch (err) {
-        setError(err.message);
-        console.error('Failed to fetch orders:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchOrders();
-  }, []);
+
+    // Subscribe to order-related notifications
+    const unsubscribe = subscribe(['ORDER_STATUS', 'ORDER_NEW'], () => {
+      console.log('🔄 Refreshing orders due to notification');
+      fetchOrders();
+    });
+
+    return unsubscribe;
+  }, [subscribe]);
 
   const filteredOrders = filterStatus
     ? orders.filter(o => o.status === filterStatus)
@@ -246,7 +286,7 @@ export default function OrderHistory() {
               )}
 
               {/* Actions */}
-              <div style={{ display: 'flex', gap: 12 }}>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                 <button
                   onClick={() => setSelectedOrder(order)}
                   style={{
@@ -261,6 +301,52 @@ export default function OrderHistory() {
                 >
                   View Details
                 </button>
+
+                {/* Edit button - only for PLACED orders within 24hrs */}
+                {(() => {
+                  const modifyCheck = orderService.canModifyOrder(order);
+                  return modifyCheck.allowed && (
+                    <Link
+                      to={`/franchise/edit-order/${order.id}`}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: 8,
+                        background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                        color: 'white',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        textDecoration: 'none',
+                        display: 'inline-block'
+                      }}
+                    >
+                      Edit
+                    </Link>
+                  );
+                })()}
+
+                {/* Delete button - only for PLACED orders within 24hrs */}
+                {(() => {
+                  const modifyCheck = orderService.canModifyOrder(order);
+                  return modifyCheck.allowed && (
+                    <button
+                      onClick={() => handleDeleteOrder(order.id)}
+                      disabled={deletingOrderId === order.id}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: 8,
+                        border: 'none',
+                        background: deletingOrderId === order.id ? '#9ca3af' : 'linear-gradient(135deg, #ef4444, #dc2626)',
+                        color: 'white',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: deletingOrderId === order.id ? 'not-allowed' : 'pointer',
+                        opacity: deletingOrderId === order.id ? 0.6 : 1
+                      }}
+                    >
+                      {deletingOrderId === order.id ? 'Deleting...' : 'Delete'}
+                    </button>
+                  );
+                })()}
 
                 {order.status === 'DISPATCHED' && (
                   <Link

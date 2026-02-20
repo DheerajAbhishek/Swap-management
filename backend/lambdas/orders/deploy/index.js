@@ -95,25 +95,6 @@ async function getKitchenUsers(vendorId = null) {
     }
 }
 
-// Check if order can be edited/deleted (within 24hrs and not accepted)
-function canModifyOrder(order) {
-    // Check time restriction: 24 hours from creation
-    const orderTime = new Date(order.created_at).getTime();
-    const now = Date.now();
-    const hoursSinceCreation = (now - orderTime) / (1000 * 60 * 60);
-
-    if (hoursSinceCreation > 24) {
-        return { allowed: false, reason: 'Order can only be modified within 24 hours of creation' };
-    }
-
-    // Check status restriction: cannot modify if accepted or later
-    if (order.status !== 'PLACED') {
-        return { allowed: false, reason: `Cannot modify order with status: ${order.status}` };
-    }
-
-    return { allowed: true };
-}
-
 // Get franchise's assigned vendors (vendor_1 and vendor_2)
 async function getFranchiseVendors(franchiseId) {
     try {
@@ -121,13 +102,13 @@ async function getFranchiseVendors(franchiseId) {
             TableName: 'supply_franchises',
             Key: { id: franchiseId }
         }));
-
+        
         if (!result.Item) return [];
 
         const vendors = [];
         if (result.Item.vendor_1_id) vendors.push(result.Item.vendor_1_id);
         if (result.Item.vendor_2_id) vendors.push(result.Item.vendor_2_id);
-
+        
         return vendors;
     } catch (err) {
         console.error('Failed to get franchise vendors:', err);
@@ -198,11 +179,7 @@ exports.handler = async (event) => {
                     TableName: ORDER_ITEMS_TABLE,
                     IndexName: 'order-index',
                     KeyConditionExpression: 'order_id = :orderId',
-                    FilterExpression: 'attribute_not_exists(deleted) OR deleted = :false',
-                    ExpressionAttributeValues: {
-                        ':orderId': order.id,
-                        ':false': false
-                    }
+                    ExpressionAttributeValues: { ':orderId': order.id }
                 }));
 
                 for (const item of (itemsResult.Items || [])) {
@@ -219,65 +196,6 @@ exports.handler = async (event) => {
                 statusCode: 200,
                 headers,
                 body: JSON.stringify(receivedItems)
-            };
-        }
-
-        // GET /orders/{id} - Get single order by ID
-        if (httpMethod === 'GET' && path.match(/^\/orders\/[^/]+$/) && !path.includes('/received-items')) {
-            const orderId = event.pathParameters?.id;
-
-            // Get the order
-            const orderResult = await dynamodb.send(new GetCommand({
-                TableName: ORDERS_TABLE,
-                Key: { id: orderId }
-            }));
-
-            const order = orderResult.Item;
-            if (!order) {
-                return {
-                    statusCode: 404,
-                    headers,
-                    body: JSON.stringify({ error: 'Order not found' })
-                };
-            }
-
-            // Verify access permissions
-            if (user.role === 'FRANCHISE' || user.role === 'FRANCHISE_STAFF') {
-                if (order.franchise_id !== user.franchise_id) {
-                    return {
-                        statusCode: 403,
-                        headers,
-                        body: JSON.stringify({ error: 'Access denied' })
-                    };
-                }
-            } else if (user.role === 'KITCHEN' || user.role === 'KITCHEN_STAFF') {
-                const vendorId = user.vendor_id || user.kitchen_id || user.userId;
-                if (order.vendor_id !== vendorId && order.vendor_id !== user.userId) {
-                    return {
-                        statusCode: 403,
-                        headers,
-                        body: JSON.stringify({ error: 'Access denied' })
-                    };
-                }
-            }
-
-            // Get order items (exclude deleted items)
-            const itemsResult = await dynamodb.send(new QueryCommand({
-                TableName: ORDER_ITEMS_TABLE,
-                IndexName: 'order-index',
-                KeyConditionExpression: 'order_id = :orderId',
-                FilterExpression: 'attribute_not_exists(deleted) OR deleted = :false',
-                ExpressionAttributeValues: {
-                    ':orderId': orderId,
-                    ':false': false
-                }
-            }));
-            order.items = itemsResult.Items || [];
-
-            return {
-                statusCode: 200,
-                headers,
-                body: JSON.stringify(order)
             };
         }
 
@@ -331,17 +249,13 @@ exports.handler = async (event) => {
                 orders = result.Items || [];
             }
 
-            // Get items for each order (exclude deleted items)
+            // Get items for each order
             for (const order of orders) {
                 const itemsResult = await dynamodb.send(new QueryCommand({
                     TableName: ORDER_ITEMS_TABLE,
                     IndexName: 'order-index',
                     KeyConditionExpression: 'order_id = :orderId',
-                    FilterExpression: 'attribute_not_exists(deleted) OR deleted = :false',
-                    ExpressionAttributeValues: {
-                        ':orderId': order.id,
-                        ':false': false
-                    }
+                    ExpressionAttributeValues: { ':orderId': order.id }
                 }));
                 order.items = itemsResult.Items || [];
             }
@@ -687,265 +601,6 @@ exports.handler = async (event) => {
                 statusCode: 200,
                 headers,
                 body: JSON.stringify({ message: 'Order received' })
-            };
-        }
-
-        // PUT /orders/{id} - Edit order (24hr restriction + only PLACED status)
-        if (httpMethod === 'PUT' && path.match(/^\/orders\/[^/]+$/) && !path.includes('/accept') && !path.includes('/dispatch') && !path.includes('/receive')) {
-            // Only franchise and franchise staff can edit their own orders
-            if (user.role !== 'FRANCHISE' && user.role !== 'FRANCHISE_STAFF') {
-                return {
-                    statusCode: 403,
-                    headers,
-                    body: JSON.stringify({ error: 'Only franchises can edit orders' })
-                };
-            }
-
-            const orderId = event.pathParameters?.id;
-            const body = JSON.parse(event.body || '{}');
-
-            // Get existing order
-            const orderResult = await dynamodb.send(new GetCommand({
-                TableName: ORDERS_TABLE,
-                Key: { id: orderId }
-            }));
-
-            const order = orderResult.Item;
-            if (!order) {
-                return {
-                    statusCode: 404,
-                    headers,
-                    body: JSON.stringify({ error: 'Order not found' })
-                };
-            }
-
-            // Verify order belongs to user's franchise
-            if (order.franchise_id !== user.franchise_id) {
-                return {
-                    statusCode: 403,
-                    headers,
-                    body: JSON.stringify({ error: 'You can only edit your own franchise orders' })
-                };
-            }
-
-            // Check if order can be modified (24hr + status check)
-            const modifyCheck = canModifyOrder(order);
-            if (!modifyCheck.allowed) {
-                return {
-                    statusCode: 400,
-                    headers,
-                    body: JSON.stringify({ error: modifyCheck.reason })
-                };
-            }
-
-            // Validate vendor if changed
-            let vendorId = body.vendor_id || order.vendor_id;
-            let vendorName = order.vendor_name;
-            let vendorItems = [];
-
-            if (body.vendor_id && body.vendor_id !== order.vendor_id) {
-                // Vendor changed, validate it
-                const franchiseResult = await dynamodb.send(new GetCommand({
-                    TableName: 'supply_franchises',
-                    Key: { id: user.franchise_id }
-                }));
-
-                if (franchiseResult.Item) {
-                    const vendor1Id = franchiseResult.Item.vendor_1_id;
-                    const vendor2Id = franchiseResult.Item.vendor_2_id;
-
-                    if (vendorId !== vendor1Id && vendorId !== vendor2Id) {
-                        return {
-                            statusCode: 400,
-                            headers,
-                            body: JSON.stringify({ error: 'Selected vendor is not assigned to this franchise' })
-                        };
-                    }
-                }
-
-                // Get vendor details
-                const vendorResult = await dynamodb.send(new GetCommand({
-                    TableName: 'supply_vendors',
-                    Key: { id: vendorId }
-                }));
-                if (vendorResult.Item) {
-                    vendorName = vendorResult.Item.name || '';
-                    vendorItems = vendorResult.Item.items || [];
-                }
-            } else {
-                // Vendor not changed, load existing vendor items for price lookup
-                const vendorResult = await dynamodb.send(new GetCommand({
-                    TableName: 'supply_vendors',
-                    Key: { id: vendorId }
-                }));
-                if (vendorResult.Item) {
-                    vendorItems = vendorResult.Item.items || [];
-                }
-            }
-
-            // Delete existing order items
-            const existingItemsResult = await dynamodb.send(new QueryCommand({
-                TableName: ORDER_ITEMS_TABLE,
-                IndexName: 'order-index',
-                KeyConditionExpression: 'order_id = :orderId',
-                ExpressionAttributeValues: { ':orderId': orderId }
-            }));
-
-            for (const item of (existingItemsResult.Items || [])) {
-                await dynamodb.send(new UpdateCommand({
-                    TableName: ORDER_ITEMS_TABLE,
-                    Key: { id: item.id },
-                    UpdateExpression: 'SET deleted = :del',
-                    ExpressionAttributeValues: { ':del': true }
-                }));
-            }
-
-            // Create new order items
-            let totalAmount = 0;
-            let totalVendorCost = 0;
-            const newOrderItems = [];
-
-            for (const item of (body.items || [])) {
-                const lineTotal = (item.quantity || 0) * (item.unit_price || 0);
-                totalAmount += lineTotal;
-
-                // Find vendor_price from vendor items
-                const vendorItem = vendorItems.find(vi =>
-                    vi.name.toLowerCase().trim() === item.item_name.toLowerCase().trim()
-                );
-                const vendorPrice = vendorItem?.vendor_price || 0;
-                const vendorCostLine = (item.quantity || 0) * vendorPrice;
-                totalVendorCost += vendorCostLine;
-
-                const orderItem = {
-                    id: 'oi-' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
-                    order_id: orderId,
-                    item_id: item.item_id,
-                    item_name: item.item_name,
-                    ordered_qty: item.quantity,
-                    uom: item.uom,
-                    unit_price: item.unit_price,
-                    vendor_price: vendorPrice,
-                    line_total: lineTotal,
-                    vendor_cost_line: vendorCostLine
-                };
-
-                newOrderItems.push(orderItem);
-
-                await dynamodb.send(new PutCommand({
-                    TableName: ORDER_ITEMS_TABLE,
-                    Item: orderItem
-                }));
-            }
-
-            // Update order
-            await dynamodb.send(new UpdateCommand({
-                TableName: ORDERS_TABLE,
-                Key: { id: orderId },
-                UpdateExpression: 'SET total_amount = :total, total_vendor_cost = :vendorCost, vendor_id = :vendorId, vendor_name = :vendorName, updated_at = :updatedAt, updated_by = :updatedBy',
-                ExpressionAttributeValues: {
-                    ':total': totalAmount,
-                    ':vendorCost': totalVendorCost,
-                    ':vendorId': vendorId,
-                    ':vendorName': vendorName,
-                    ':updatedAt': new Date().toISOString(),
-                    ':updatedBy': user.userId
-                }
-            }));
-
-            return {
-                statusCode: 200,
-                headers,
-                body: JSON.stringify({
-                    message: 'Order updated successfully',
-                    order: { ...order, total_amount: totalAmount, total_vendor_cost: totalVendorCost },
-                    items: newOrderItems
-                })
-            };
-        }
-
-        // DELETE /orders/{id} - Delete order (24hr restriction + only PLACED status)
-        if (httpMethod === 'DELETE' && path.match(/^\/orders\/[^/]+$/)) {
-            // Only franchise and franchise staff can delete their own orders
-            if (user.role !== 'FRANCHISE' && user.role !== 'FRANCHISE_STAFF') {
-                return {
-                    statusCode: 403,
-                    headers,
-                    body: JSON.stringify({ error: 'Only franchises can delete orders' })
-                };
-            }
-
-            const orderId = event.pathParameters?.id;
-
-            // Get existing order
-            const orderResult = await dynamodb.send(new GetCommand({
-                TableName: ORDERS_TABLE,
-                Key: { id: orderId }
-            }));
-
-            const order = orderResult.Item;
-            if (!order) {
-                return {
-                    statusCode: 404,
-                    headers,
-                    body: JSON.stringify({ error: 'Order not found' })
-                };
-            }
-
-            // Verify order belongs to user's franchise
-            if (order.franchise_id !== user.franchise_id) {
-                return {
-                    statusCode: 403,
-                    headers,
-                    body: JSON.stringify({ error: 'You can only delete your own franchise orders' })
-                };
-            }
-
-            // Check if order can be deleted (24hr + status check)
-            const modifyCheck = canModifyOrder(order);
-            if (!modifyCheck.allowed) {
-                return {
-                    statusCode: 400,
-                    headers,
-                    body: JSON.stringify({ error: modifyCheck.reason })
-                };
-            }
-
-            // Soft delete: mark as deleted instead of removing
-            await dynamodb.send(new UpdateCommand({
-                TableName: ORDERS_TABLE,
-                Key: { id: orderId },
-                UpdateExpression: 'SET deleted = :del, deleted_at = :time, deleted_by = :user, #status = :status',
-                ExpressionAttributeNames: { '#status': 'status' },
-                ExpressionAttributeValues: {
-                    ':del': true,
-                    ':time': new Date().toISOString(),
-                    ':user': user.userId,
-                    ':status': 'CANCELLED'
-                }
-            }));
-
-            // Also mark order items as deleted
-            const itemsResult = await dynamodb.send(new QueryCommand({
-                TableName: ORDER_ITEMS_TABLE,
-                IndexName: 'order-index',
-                KeyConditionExpression: 'order_id = :orderId',
-                ExpressionAttributeValues: { ':orderId': orderId }
-            }));
-
-            for (const item of (itemsResult.Items || [])) {
-                await dynamodb.send(new UpdateCommand({
-                    TableName: ORDER_ITEMS_TABLE,
-                    Key: { id: item.id },
-                    UpdateExpression: 'SET deleted = :del',
-                    ExpressionAttributeValues: { ':del': true }
-                }));
-            }
-
-            return {
-                statusCode: 200,
-                headers,
-                body: JSON.stringify({ message: 'Order deleted successfully' })
             };
         }
 

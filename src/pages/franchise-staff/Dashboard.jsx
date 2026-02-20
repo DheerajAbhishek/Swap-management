@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { attendanceService } from '../../services/attendanceService';
 import { orderService } from '../../services/orderService';
 import { staffService } from '../../services/staffService';
+import { useNotificationEvents } from '../../context/NotificationContext';
 
 /**
  * Franchise Staff Dashboard
@@ -12,6 +13,7 @@ import { staffService } from '../../services/staffService';
  */
 export default function FranchiseStaffDashboard() {
   const { user } = useAuth();
+  const { subscribe } = useNotificationEvents();
   const [todayAttendance, setTodayAttendance] = useState(null);
   const [staffInfo, setStaffInfo] = useState(null);
   const [recentOrders, setRecentOrders] = useState([]);
@@ -52,7 +54,15 @@ export default function FranchiseStaffDashboard() {
       }
     };
     fetchData();
-  }, [user]);
+
+    // Subscribe to order-related notifications for auto-refresh
+    const unsubscribe = subscribe(['ORDER_STATUS', 'ORDER_NEW'], () => {
+      console.log('🔄 Refreshing orders due to notification');
+      fetchData();
+    });
+
+    return unsubscribe;
+  }, [user, subscribe]);
 
   // Calculate score color
   const getScoreColor = (score) => {
@@ -135,9 +145,9 @@ export default function FranchiseStaffDashboard() {
               <div style={{
                 fontSize: 18,
                 fontWeight: 600,
-                color: todayAttendance.check_out_time ? '#10b981' : '#3b82f6'
+                color: todayAttendance.checkout_time ? '#10b981' : '#3b82f6'
               }}>
-                {todayAttendance.check_out_time ? 'Shift Complete' : 'Checked In'}
+                {todayAttendance.checkout_time ? 'Shift Complete' : 'Checked In'}
               </div>
               {todayAttendance.is_late && (
                 <div style={{ fontSize: 12, color: '#f59e0b', marginTop: 4 }}>
@@ -161,8 +171,8 @@ export default function FranchiseStaffDashboard() {
         }}>
           <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 8 }}>Check-in Time</div>
           <div style={{ fontSize: 18, fontWeight: 600, color: '#1f2937' }}>
-            {todayAttendance?.check_in_time
-              ? new Date(todayAttendance.check_in_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+            {todayAttendance?.checkin_time
+              ? new Date(todayAttendance.checkin_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
               : '--:--'
             }
           </div>

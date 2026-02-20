@@ -133,7 +133,8 @@ export function getNavItems(user) {
         { path: '/franchise/orders', label: 'Order History', icon: 'history' },
         { path: '/franchise/staff', label: 'Manage Staff', icon: 'users' },
         { path: '/franchise/staff-attendance', label: 'Staff Attendance', icon: 'calendar' },
-        { path: '/franchise/complaints', label: 'My Complaints', icon: 'message' }
+        { path: '/franchise/complaints', label: 'My Complaints', icon: 'message' },
+        { path: '/franchise/discrepancies', label: 'Discrepancies', icon: 'alert' }
       ];
     case USER_ROLES.AUDITOR:
       return [
@@ -147,12 +148,16 @@ export function getNavItems(user) {
         { path: '/franchise-staff/attendance', label: 'My Attendance', icon: 'calendar' },
         { path: '/franchise-staff/daily-entry', label: 'Daily Reports', icon: 'report' },
         { path: '/franchise-staff/create-order', label: 'Create Order', icon: 'plus' },
-        { path: '/franchise-staff/orders', label: 'Order History', icon: 'history' }
+        { path: '/franchise-staff/orders', label: 'Order History', icon: 'history' },
+        { path: '/franchise-staff/complaints', label: 'My Complaints', icon: 'message' },
+        { path: '/franchise-staff/discrepancies', label: 'Discrepancies', icon: 'alert' }
       ];
     case USER_ROLES.KITCHEN_STAFF:
       return [
         { path: '/kitchen-staff', label: 'Dashboard', icon: 'dashboard' },
-        { path: '/kitchen-staff/orders', label: 'Incoming Orders', icon: 'orders' }
+        { path: '/kitchen-staff/orders', label: 'Incoming Orders', icon: 'orders' },
+        { path: '/kitchen-staff/discrepancies', label: 'Discrepancies', icon: 'alert' },
+        { path: '/kitchen-staff/complaints', label: 'Complaints', icon: 'message' }
       ];
     default:
       return [];

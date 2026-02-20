@@ -7,6 +7,7 @@ import ReceivedItemsReport from '../../components/Supply/ReceivedItemsReport';
 import { formatCurrency, formatDateTime } from '../../utils/constants';
 import { orderService } from '../../services/orderService';
 import { franchiseService } from '../../services/franchiseService';
+import { useNotificationEvents } from '../../context/NotificationContext';
 
 // SVG Icons
 const Icons = {
@@ -49,6 +50,7 @@ const Icons = {
  */
 export default function FranchiseDashboard() {
   const { user } = useAuth();
+  const { subscribe } = useNotificationEvents();
   const [orders, setOrders] = useState([]);
   const [assignedKitchen, setAssignedKitchen] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -62,52 +64,61 @@ export default function FranchiseDashboard() {
   const [loadingItems, setLoadingItems] = useState(false);
 
   // Fetch orders from API
-  useEffect(() => {
-    const fetchOrders = async () => {
-      try {
-        setLoading(true);
-        const data = await orderService.getOrders();
-        setOrders(data);
+  const fetchOrders = async () => {
+    try {
+      setLoading(true);
+      const data = await orderService.getOrders();
+      setOrders(data);
 
-        // Get franchise details to find assigned kitchen
-        if (user?.franchise_id) {
-          try {
-            const franchiseData = await franchiseService.getFranchise(user.franchise_id);
-            if (franchiseData) {
-              setAssignedKitchen({
-                id: franchiseData.vendor_id,
-                name: franchiseData.vendor_name,
-                // Additional details from user token if available
-                phone: '', // Can be enhanced later
-                location: ''
-              });
-            }
-          } catch (err) {
-            console.log('Could not fetch franchise details:', err);
-            // Fallback to user token data
-            if (user?.vendor_id && user?.vendor_name) {
-              setAssignedKitchen({
-                id: user.vendor_id,
-                name: user.vendor_name
-              });
-            }
+      // Get franchise details to find assigned kitchen
+      if (user?.franchise_id) {
+        try {
+          const franchiseData = await franchiseService.getFranchise(user.franchise_id);
+          if (franchiseData) {
+            setAssignedKitchen({
+              id: franchiseData.vendor_id,
+              name: franchiseData.vendor_name,
+              // Additional details from user token if available
+              phone: '', // Can be enhanced later
+              location: ''
+            });
           }
-        } else if (user?.vendor_id && user?.vendor_name) {
-          // Use token data directly
-          setAssignedKitchen({
-            id: user.vendor_id,
-            name: user.vendor_name
-          });
+        } catch (err) {
+          console.log('Could not fetch franchise details:', err);
+          // Fallback to user token data
+          if (user?.vendor_id && user?.vendor_name) {
+            setAssignedKitchen({
+              id: user.vendor_id,
+              name: user.vendor_name
+            });
+          }
         }
-      } catch (err) {
-        console.error('Failed to fetch orders:', err);
-        setError('Failed to load orders');
-      } finally {
-        setLoading(false);
+      } else if (user?.vendor_id && user?.vendor_name) {
+        // Use token data directly
+        setAssignedKitchen({
+          id: user.vendor_id,
+          name: user.vendor_name
+        });
       }
-    };
+    } catch (err) {
+      console.error('Failed to fetch orders:', err);
+      setError('Failed to load orders');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchOrders();
-  }, [user]);
+
+    // Subscribe to order notifications
+    const unsubscribe = subscribe(['ORDER_STATUS', 'ORDER_NEW'], () => {
+      console.log('🔄 Dashboard refreshing orders due to notification');
+      fetchOrders();
+    });
+
+    return unsubscribe;
+  }, [user, subscribe]);
 
   // Load received items when date range changes
   useEffect(() => {

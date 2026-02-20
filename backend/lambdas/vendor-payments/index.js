@@ -102,14 +102,13 @@ exports.handler = async (event) => {
             }));
             const vendors = vendorsResult.Items || [];
 
-            // Get all received orders (status = RECEIVED means delivered and unpaid)
+            // Get all received orders (status = RECEIVED means delivered and accepted by franchise)
             const ordersResult = await dynamodb.send(new ScanCommand({
                 TableName: ORDERS_TABLE,
-                FilterExpression: '#status = :received OR #status = :dispatched',
+                FilterExpression: '#status = :received',
                 ExpressionAttributeNames: { '#status': 'status' },
                 ExpressionAttributeValues: {
-                    ':received': 'RECEIVED',
-                    ':dispatched': 'DISPATCHED'
+                    ':received': 'RECEIVED'
                 }
             }));
             const orders = ordersResult.Items || [];
@@ -140,8 +139,8 @@ exports.handler = async (event) => {
                     );
                     if (!isPaid) {
                         ordersByDate[orderDate].count++;
-                        ordersByDate[orderDate].amount += order.total_amount || 0;
-                        totalPending += order.total_amount || 0;
+                        ordersByDate[orderDate].amount += order.total_vendor_cost || 0;
+                        totalPending += order.total_vendor_cost || 0;
                     }
                 });
 
@@ -210,11 +209,15 @@ exports.handler = async (event) => {
                 };
             }
 
-            // Get all orders for this vendor
+            // Get all RECEIVED orders for this vendor (only received orders count in financials)
             const ordersResult = await dynamodb.send(new ScanCommand({
                 TableName: ORDERS_TABLE,
-                FilterExpression: 'vendor_id = :vendorId',
-                ExpressionAttributeValues: { ':vendorId': vendorId }
+                FilterExpression: 'vendor_id = :vendorId AND #status = :received',
+                ExpressionAttributeNames: { '#status': 'status' },
+                ExpressionAttributeValues: {
+                    ':vendorId': vendorId,
+                    ':received': 'RECEIVED'
+                }
             }));
             let orders = ordersResult.Items || [];
 
@@ -226,11 +229,10 @@ exports.handler = async (event) => {
             }));
             const payments = paymentsResult.Items || [];
 
-            // Calculate opening balance (unpaid orders before start date)
+            // Calculate opening balance (unpaid RECEIVED orders before start date)
             const ordersBeforeRange = orders.filter(o => {
                 const orderDate = o.created_at?.split('T')[0];
-                return orderDate < dateRange.startDate &&
-                    (o.status === 'RECEIVED' || o.status === 'DISPATCHED');
+                return orderDate < dateRange.startDate;
             });
 
             let openingBalance = 0;
@@ -239,7 +241,7 @@ exports.handler = async (event) => {
                     p.order_ids?.includes(order.id) && p.status === 'COMPLETED'
                 );
                 if (!isPaid) {
-                    openingBalance += order.total_amount || 0;
+                    openingBalance += order.total_vendor_cost || 0;
                 }
             });
 
@@ -261,7 +263,7 @@ exports.handler = async (event) => {
                     date: order.created_at?.split('T')[0],
                     franchise_name: order.franchise_name,
                     status: order.status,
-                    amount: order.total_amount || 0,
+                    amount: order.total_vendor_cost || 0,
                     is_paid: !!payment,
                     paid_date: payment?.paid_date || null,
                     payment_id: payment?.id || null,

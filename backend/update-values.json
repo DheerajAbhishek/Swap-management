@@ -1,0 +1,456 @@
+{
+    ":items": {
+        "L": [
+            {
+                "M": {
+                    "unit": {
+                        "S": "Kg"
+                    },
+                    "name": {
+                        "S": "Brocolli Salad"
+                    },
+                    "vendor_price": {
+                        "N": "279"
+                    },
+                    "created_at": {
+                        "S": "2026-02-18T17:05:02.966Z"
+                    },
+                    "id": {
+                        "S": "item-1771434302956-vvcnt"
+                    },
+                    "category": {
+                        "S": "SFI"
+                    },
+                    "franchise_price": {
+                        "N": "0"
+                    }
+                }
+            },
+            {
+                "M": {
+                    "unit": {
+                        "S": "Nos"
+                    },
+                    "name": {
+                        "S": "Boiled Eggs"
+                    },
+                    "vendor_price": {
+                        "N": "10"
+                    },
+                    "created_at": {
+                        "S": "2026-02-18T17:05:02.966Z"
+                    },
+                    "id": {
+                        "S": "item-1771434302966-tlvxz"
+                    },
+                    "category": {
+                        "S": "Finished Product"
+                    },
+                    "franchise_price": {
+                        "N": "0"
+                    }
+                }
+            },
+            {
+                "M": {
+                    "unit": {
+                        "S": "Kg"
+                    },
+                    "name": {
+                        "S": "Flavoured Brown Rice"
+                    },
+                    "vendor_price": {
+                        "N": "85"
+                    },
+                    "created_at": {
+                        "S": "2026-02-18T17:05:02.966Z"
+                    },
+                    "id": {
+                        "S": "item-1771434302966-jxgka"
+                    },
+                    "category": {
+                        "S": "SFI"
+                    },
+                    "franchise_price": {
+                        "N": "0"
+                    }
+                }
+            },
+            {
+                "M": {
+                    "unit": {
+                        "S": "Nos"
+                    },
+                    "name": {
+                        "S": "Chia Pudding"
+                    },
+                    "vendor_price": {
+                        "N": "104"
+                    },
+                    "created_at": {
+                        "S": "2026-02-18T17:05:02.966Z"
+                    },
+                    "id": {
+                        "S": "item-1771434302966-p7bqg"
+                    },
+                    "category": {
+                        "S": "Finished Product"
+                    },
+                    "franchise_price": {
+                        "N": "0"
+                    }
+                }
+            },
+            {
+                "M": {
+                    "unit": {
+                        "S": "Kg"
+                    },
+                    "name": {
+                        "S": "Cooked Millets"
+                    },
+                    "vendor_price": {
+                        "N": "92"
+                    },
+                    "created_at": {
+                        "S": "2026-02-18T17:05:02.966Z"
+                    },
+                    "id": {
+                        "S": "item-1771434302966-gt58m"
+                    },
+                    "category": {
+                        "S": "SFI"
+                    },
+                    "franchise_price": {
+                        "N": "0"
+                    }
+                }
+            },
+            {
+                "M": {
+                    "unit": {
+                        "S": "Kg"
+                    },
+                    "name": {
+                        "S": "Corn Salad"
+                    },
+                    "vendor_price": {
+                        "N": "150"
+                    },
+                    "created_at": {
+                        "S": "2026-02-18T17:05:02.966Z"
+                    },
+                    "id": {
+                        "S": "item-1771434302966-ashid"
+                    },
+                    "category": {
+                        "S": "SFI"
+                    },
+                    "franchise_price": {
+                        "N": "0"
+                    }
+                }
+            },
+            {
+                "M": {
+                    "unit": {
+                        "S": "Kg"
+                    },
+                    "name": {
+                        "S": "Flavoured Boiled Basmati Rice"
+                    },
+                    "vendor_price": {
+                        "N": "98"
+                    },
+                    "created_at": {
+                        "S": "2026-02-18T17:05:02.966Z"
+                    },
+                    "id": {
+                        "S": "item-1771434302966-x4hnu"
+                    },
+                    "category": {
+                        "S": "SFI"
+                    },
+                    "franchise_price": {
+                        "N": "0"
+                    }
+                }
+            },
+            {
+                "M": {
+                    "unit": {
+                        "S": "Kg"
+                    },
+                    "name": {
+                        "S": "Non Spicy Chicken"
+                    },
+                    "vendor_price": {
+                        "N": "557"
+                    },
+                    "created_at": {
+                        "S": "2026-02-18T17:05:02.966Z"
+                    },
+                    "id": {
+                        "S": "item-1771434302966-fk0ij"
+                    },
+                    "category": {
+                        "S": "SFI"
+                    },
+                    "franchise_price": {
+                        "N": "0"
+                    }
+                }
+            },
+            {
+                "M": {
+                    "unit": {
+                        "S": "Kg"
+                    },
+                    "name": {
+                        "S": "Grilled Paneer"
+                    },
+                    "vendor_price": {
+                        "N": "403"
+                    },
+                    "created_at": {
+                        "S": "2026-02-18T17:05:02.966Z"
+                    },
+                    "id": {
+                        "S": "item-1771434302966-qhwes"
+                    },
+                    "category": {
+                        "S": "SFI"
+                    },
+                    "franchise_price": {
+                        "N": "0"
+                    }
+                }
+            },
+            {
+                "M": {
+                    "unit": {
+                        "S": "Kg"
+                    },
+                    "name": {
+                        "S": "Grilled Shrimp"
+                    },
+                    "vendor_price": {
+                        "N": "596"
+                    },
+                    "created_at": {
+                        "S": "2026-02-18T17:05:02.966Z"
+                    },
+                    "id": {
+                        "S": "item-1771434302966-l601h"
+                    },
+                    "category": {
+                        "S": "SFI"
+                    },
+                    "franchise_price": {
+                        "N": "0"
+                    }
+                }
+            },
+            {
+                "M": {
+                    "unit": {
+                        "S": "Kg"
+                    },
+                    "name": {
+                        "S": "Mint Yoghourt"
+                    },
+                    "vendor_price": {
+                        "N": "166"
+                    },
+                    "created_at": {
+                        "S": "2026-02-18T17:05:02.966Z"
+                    },
+                    "id": {
+                        "S": "item-1771434302966-6xsky"
+                    },
+                    "category": {
+                        "S": "SFI"
+                    },
+                    "franchise_price": {
+                        "N": "0"
+                    }
+                }
+            },
+            {
+                "M": {
+                    "unit": {
+                        "S": "Nos"
+                    },
+                    "name": {
+                        "S": "Multigrain Rotis"
+                    },
+                    "vendor_price": {
+                        "N": "17"
+                    },
+                    "created_at": {
+                        "S": "2026-02-18T17:05:02.966Z"
+                    },
+                    "id": {
+                        "S": "item-1771434302966-fzop2"
+                    },
+                    "category": {
+                        "S": "SFI"
+                    },
+                    "franchise_price": {
+                        "N": "0"
+                    }
+                }
+            },
+            {
+                "M": {
+                    "unit": {
+                        "S": "Nos"
+                    },
+                    "name": {
+                        "S": "Oat Meal"
+                    },
+                    "vendor_price": {
+                        "N": "98"
+                    },
+                    "created_at": {
+                        "S": "2026-02-18T17:05:02.966Z"
+                    },
+                    "id": {
+                        "S": "item-1771434302966-9yg6y"
+                    },
+                    "category": {
+                        "S": "Finished Product"
+                    },
+                    "franchise_price": {
+                        "N": "0"
+                    }
+                }
+            },
+            {
+                "M": {
+                    "unit": {
+                        "S": "Kg"
+                    },
+                    "name": {
+                        "S": "Rajma Masala Curry"
+                    },
+                    "vendor_price": {
+                        "N": "115"
+                    },
+                    "created_at": {
+                        "S": "2026-02-18T17:05:02.966Z"
+                    },
+                    "id": {
+                        "S": "item-1771434302966-vs2zb"
+                    },
+                    "category": {
+                        "S": "SFI"
+                    },
+                    "franchise_price": {
+                        "N": "0"
+                    }
+                }
+            },
+            {
+                "M": {
+                    "unit": {
+                        "S": "Kg"
+                    },
+                    "name": {
+                        "S": "Spicy Chicken"
+                    },
+                    "vendor_price": {
+                        "N": "569"
+                    },
+                    "created_at": {
+                        "S": "2026-02-18T17:05:02.966Z"
+                    },
+                    "id": {
+                        "S": "item-1771434302966-avkhj"
+                    },
+                    "category": {
+                        "S": "SFI"
+                    },
+                    "franchise_price": {
+                        "N": "0"
+                    }
+                }
+            },
+            {
+                "M": {
+                    "unit": {
+                        "S": "Kg"
+                    },
+                    "name": {
+                        "S": "Tomato Onion Salad"
+                    },
+                    "vendor_price": {
+                        "N": "107"
+                    },
+                    "created_at": {
+                        "S": "2026-02-18T17:05:02.966Z"
+                    },
+                    "id": {
+                        "S": "item-1771434302966-p6ltm"
+                    },
+                    "category": {
+                        "S": "SFI"
+                    },
+                    "franchise_price": {
+                        "N": "0"
+                    }
+                }
+            },
+            {
+                "M": {
+                    "unit": {
+                        "S": "Kg"
+                    },
+                    "name": {
+                        "S": "Spicy paneer"
+                    },
+                    "vendor_price": {
+                        "N": "363"
+                    },
+                    "created_at": {
+                        "S": "2026-02-18T17:05:02.966Z"
+                    },
+                    "id": {
+                        "S": "item-1771434302966-kmmhs"
+                    },
+                    "category": {
+                        "S": "SFI"
+                    },
+                    "franchise_price": {
+                        "N": "0"
+                    }
+                }
+            },
+            {
+                "M": {
+                    "unit": {
+                        "S": "Kg"
+                    },
+                    "name": {
+                        "S": "Soya"
+                    },
+                    "vendor_price": {
+                        "N": "132"
+                    },
+                    "created_at": {
+                        "S": "2026-02-18T17:05:02.966Z"
+                    },
+                    "id": {
+                        "S": "item-1771434302966-i7cj2"
+                    },
+                    "category": {
+                        "S": "SFI"
+                    },
+                    "franchise_price": {
+                        "N": "0"
+                    }
+                }
+            }
+        ]
+    }
+}

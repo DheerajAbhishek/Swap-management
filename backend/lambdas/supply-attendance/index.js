@@ -1,11 +1,14 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient, ScanCommand, GetCommand, PutCommand, UpdateCommand, QueryCommand } = require('@aws-sdk/lib-dynamodb');
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 
 const client = new DynamoDBClient({});
 const dynamodb = DynamoDBDocumentClient.from(client);
+const s3Client = new S3Client({ region: 'ap-south-1' });
 
 const ATTENDANCE_TABLE = 'supply_staff_attendance';
 const STAFF_TABLE = 'supply_staff';
+const S3_BUCKET = 'swap-management-photos';
 
 // CORS headers
 const headers = {
@@ -18,6 +21,43 @@ const headers = {
 // Generate unique ID
 function generateId() {
     return `att-${Date.now().toString(36)}${Math.random().toString(36).substr(2, 9)}`;
+}
+
+// Upload photo to S3 and return URL
+async function uploadPhotoToS3(base64Image, photoType, staffId, timestamp) {
+    try {
+        // Extract base64 data (remove data URL prefix if present)
+        let imageData = base64Image;
+        if (base64Image.startsWith('data:')) {
+            imageData = base64Image.split(',')[1];
+        }
+
+        // Generate unique filename
+        const random = Math.random().toString(36).substr(2, 8);
+        const key = `attendance/${staffId}/${timestamp}-${photoType}-${random}.jpg`;
+
+        // Convert base64 to buffer
+        const buffer = Buffer.from(imageData, 'base64');
+
+        // Upload to S3
+        await s3Client.send(new PutObjectCommand({
+            Bucket: S3_BUCKET,
+            Key: key,
+            Body: buffer,
+            ContentType: 'image/jpeg',
+            Metadata: {
+                'photo-type': photoType,
+                'staff-id': staffId,
+                'timestamp': timestamp.toString()
+            }
+        }));
+
+        // Return S3 URL
+        return `https://${S3_BUCKET}.s3.ap-south-1.amazonaws.com/${key}`;
+    } catch (error) {
+        console.error(`Error uploading ${photoType} photo to S3:`, error);
+        throw new Error(`Failed to upload ${photoType} photo: ${error.message}`);
+    }
 }
 
 // Verify token and get user info
@@ -38,17 +78,69 @@ function getUserFromToken(event) {
 
 // Score deduction constants
 const SCORE_DEDUCTIONS = {
-    LATE_CHECKIN: 5,      // After 10 AM
+    LATE_CHECKIN: 5,      // After scheduled time + tolerance
     MISSED_CHECKIN: 10,   // No check-in for the day
     NO_CHECKOUT: 10,      // No check-out marked
-    EARLY_CHECKOUT: 5     // Less than 9 hours shift
+    EARLY_CHECKOUT: 5     // Before scheduled time - tolerance
 };
 
-// Check if time is late (after 10 AM)
+// Parse time string (HH:MM) to minutes since midnight
+function parseTimeToMinutes(timeStr) {
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    return hours * 60 + minutes;
+}
+
+// Get current time in IST as minutes since midnight
+function getCurrentISTMinutes(timestamp) {
+    const date = new Date(timestamp);
+    // Convert to IST (UTC + 5:30)
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const istTime = new Date(date.getTime() + istOffset);
+    return istTime.getUTCHours() * 60 + istTime.getUTCMinutes();
+}
+
+// Check if check-in is late (beyond tolerance)
+// Early check-ins are always allowed without penalty
+// Tolerance is +5% of shift duration after scheduled start
+function isWithinCheckinTolerance(actualMinutes, scheduledStart, scheduledEnd) {
+    const shiftDuration = scheduledEnd - scheduledStart;
+    const tolerance = Math.round(shiftDuration * 0.05); // 5% tolerance
+    const allowedEnd = scheduledStart + tolerance; // Can be late up to this time
+
+    return {
+        isLate: actualMinutes > allowedEnd, // Late if checked in after tolerance window
+        isEarly: actualMinutes < scheduledStart, // Early if before scheduled start
+        tolerance: tolerance,
+        scheduledStart: scheduledStart,
+        allowedEnd: allowedEnd
+    };
+}
+
+// Check if checkout is within tolerance of scheduled end time
+function isWithinCheckoutTolerance(actualMinutes, scheduledStart, scheduledEnd) {
+    const shiftDuration = scheduledEnd - scheduledStart;
+    const tolerance = Math.round(shiftDuration * 0.05); // 5% tolerance
+    const allowedStart = scheduledEnd - tolerance;
+    const allowedEnd = scheduledEnd + tolerance;
+
+    return {
+        isWithinTolerance: actualMinutes >= allowedStart && actualMinutes <= allowedEnd,
+        isEarly: actualMinutes < allowedStart,
+        tolerance: tolerance,
+        allowedStart: allowedStart,
+        allowedEnd: allowedEnd
+    };
+}
+
+// Check if time is late (after 10 AM IST) - LEGACY, kept for backward compatibility
 function isLateCheckin(timestamp) {
     const date = new Date(timestamp);
-    const hours = date.getHours();
-    const minutes = date.getMinutes();
+    // Convert to IST (UTC + 5:30)
+    const istOffset = 5.5 * 60 * 60 * 1000; // 5 hours 30 minutes in milliseconds
+    const istTime = new Date(date.getTime() + istOffset);
+    const hours = istTime.getUTCHours(); // Use UTC methods after offset adjustment
+    const minutes = istTime.getUTCMinutes();
+    // Late if after 10:00 AM (10:01 and onwards)
     return hours > 10 || (hours === 10 && minutes > 0);
 }
 
@@ -400,6 +492,24 @@ exports.handler = async (event) => {
             const today = now.toISOString().split('T')[0];
             const staffId = user.staff_id || user.userId;
 
+            // Get staff details including shift times
+            const staffResult = await dynamodb.send(new GetCommand({
+                TableName: STAFF_TABLE,
+                Key: { id: staffId }
+            }));
+
+            if (!staffResult.Item) {
+                return {
+                    statusCode: 404,
+                    headers,
+                    body: JSON.stringify({ error: 'Staff record not found' })
+                };
+            }
+
+            const staff = staffResult.Item;
+            const scheduledStart = staff.shift_start_time || '10:00'; // Default 10 AM
+            const scheduledEnd = staff.shift_end_time || '19:00'; // Default 7 PM
+
             // Check if already checked in today
             const existingResult = await dynamodb.send(new ScanCommand({
                 TableName: ATTENDANCE_TABLE,
@@ -419,12 +529,45 @@ exports.handler = async (event) => {
                 };
             }
 
-            // Check if late
-            const isLate = isLateCheckin(now);
-            let scoreUpdate = null;
+            // Upload photos to S3 (parallel upload for better performance)
+            const timestamp = Date.now();
+            let selfie_url, shoes_url, mesa_url, standing_area_url;
 
+            try {
+                [selfie_url, shoes_url, mesa_url, standing_area_url] = await Promise.all([
+                    uploadPhotoToS3(selfie_photo, 'selfie', staffId, timestamp),
+                    uploadPhotoToS3(shoes_photo, 'shoes', staffId, timestamp),
+                    uploadPhotoToS3(mesa_photo, 'mesa', staffId, timestamp),
+                    uploadPhotoToS3(standing_area_photo, 'standing-area', staffId, timestamp)
+                ]);
+            } catch (uploadError) {
+                console.error('Photo upload error:', uploadError);
+                return {
+                    statusCode: 500,
+                    headers,
+                    body: JSON.stringify({ error: 'Failed to upload photos', details: uploadError.message })
+                };
+            }
+
+            // Validate check-in time
+            // Early checkins allowed without penalty, only penalize late checkins
+            const actualCheckinMinutes = getCurrentISTMinutes(now);
+            const scheduledStartMinutes = parseTimeToMinutes(scheduledStart);
+            const scheduledEndMinutes = parseTimeToMinutes(scheduledEnd);
+
+            const checkinValidation = isWithinCheckinTolerance(
+                actualCheckinMinutes,
+                scheduledStartMinutes,
+                scheduledEndMinutes
+            );
+
+            let scoreUpdate = null;
+            let isLate = checkinValidation.isLate;
+            let isEarly = checkinValidation.isEarly;
+
+            // Only deduct score for late checkins (early checkins are fine)
             if (isLate) {
-                scoreUpdate = await updateStaffScore(staffId, SCORE_DEDUCTIONS.LATE_CHECKIN, 'Late check-in');
+                scoreUpdate = await updateStaffScore(staffId, SCORE_DEDUCTIONS.LATE_CHECKIN, 'Late check-in beyond tolerance');
             }
 
             const attendanceRecord = {
@@ -436,17 +579,20 @@ exports.handler = async (event) => {
                 franchise_name: user.franchise_name,
                 date: today,
                 checkin_time: now.toISOString(),
-                selfie_photo: selfie_photo,
-                shoes_photo: shoes_photo,
-                mesa_photo: mesa_photo,
-                standing_area_photo: standing_area_photo,
+                selfie_photo: selfie_url,
+                shoes_photo: shoes_url,
+                mesa_photo: mesa_url,
+                standing_area_photo: standing_area_url,
+                scheduled_start_time: scheduledStart,
+                scheduled_end_time: scheduledEnd,
                 is_late: isLate,
+                is_early_checkin: isEarly,
                 checkout_time: null,
                 is_early_checkout: false,
                 shift_duration: null,
-                status: isLate ? 'LATE' : 'ON_TIME',
+                status: isLate ? 'LATE' : (isEarly ? 'EARLY' : 'ON_TIME'),
                 score_deduction: isLate ? SCORE_DEDUCTIONS.LATE_CHECKIN : 0,
-                deduction_reason: isLate ? 'Late check-in' : null,
+                deduction_reason: isLate ? 'Late check-in beyond tolerance' : null,
                 created_at: now.toISOString()
             };
 
@@ -509,13 +655,26 @@ exports.handler = async (event) => {
                 };
             }
 
-            // Calculate shift duration
+            // Validate checkout time against scheduled end time
+            const scheduledStart = attendance.scheduled_start_time || '10:00';
+            const scheduledEnd = attendance.scheduled_end_time || '19:00';
+            const actualCheckoutMinutes = getCurrentISTMinutes(now);
+            const scheduledStartMinutes = parseTimeToMinutes(scheduledStart);
+            const scheduledEndMinutes = parseTimeToMinutes(scheduledEnd);
+
+            const checkoutValidation = isWithinCheckoutTolerance(
+                actualCheckoutMinutes,
+                scheduledStartMinutes,
+                scheduledEndMinutes
+            );
+
+            // Calculate actual shift duration
             const shiftDuration = calculateShiftDuration(attendance.checkin_time, now);
-            const isEarlyCheckout = shiftDuration < 9; // Less than 9 hours
+            const isEarlyCheckout = checkoutValidation.isEarly;
 
             let scoreUpdate = null;
             if (isEarlyCheckout) {
-                scoreUpdate = await updateStaffScore(staffId, SCORE_DEDUCTIONS.EARLY_CHECKOUT, 'Early checkout (< 9 hours)');
+                scoreUpdate = await updateStaffScore(staffId, SCORE_DEDUCTIONS.EARLY_CHECKOUT, 'Early checkout before scheduled time');
             }
 
             await dynamodb.send(new UpdateCommand({
@@ -529,18 +688,21 @@ exports.handler = async (event) => {
                     ':early': isEarlyCheckout,
                     ':status': isEarlyCheckout ? 'EARLY_CHECKOUT' : 'CHECKED_OUT',
                     ':deduction': isEarlyCheckout ? (attendance.score_deduction || 0) + SCORE_DEDUCTIONS.EARLY_CHECKOUT : (attendance.score_deduction || 0),
-                    ':reason': isEarlyCheckout ? 'Early checkout (< 9 hours)' : attendance.deduction_reason
+                    ':reason': isEarlyCheckout ? 'Early checkout before scheduled time' : attendance.deduction_reason
                 }
             }));
+
+            const scheduledShiftHours = (scheduledEndMinutes - scheduledStartMinutes) / 60;
 
             return {
                 statusCode: 200,
                 headers,
                 body: JSON.stringify({
                     message: isEarlyCheckout
-                        ? `Checked out (Early - ${Math.round(shiftDuration * 10) / 10} hours, score deducted)`
+                        ? `Checked out early (${Math.round(shiftDuration * 10) / 10} hours of ${scheduledShiftHours} hours scheduled, score deducted)`
                         : `Checked out successfully (${Math.round(shiftDuration * 10) / 10} hours)`,
                     shiftDuration: Math.round(shiftDuration * 100) / 100,
+                    scheduledShiftHours: Math.round(scheduledShiftHours * 100) / 100,
                     isEarlyCheckout,
                     scoreUpdate
                 })

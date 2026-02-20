@@ -23,7 +23,9 @@ export default function FranchiseStaffManagement() {
     phone: '',
     password: '',
     address: '',
-    role: 'FRANCHISE_STAFF' // or 'FRANCHISE' for manager
+    role: 'FRANCHISE_STAFF', // or 'FRANCHISE' for manager
+    shift_start_time: '10:00',
+    shift_end_time: '19:00'
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -58,7 +60,9 @@ export default function FranchiseStaffManagement() {
         phone: staffMember.phone || '',
         password: '',
         address: staffMember.address || '',
-        role: isManager ? 'FRANCHISE' : 'FRANCHISE_STAFF'
+        role: isManager ? 'FRANCHISE' : 'FRANCHISE_STAFF',
+        shift_start_time: staffMember.shift_start_time || '10:00',
+        shift_end_time: staffMember.shift_end_time || '19:00'
       });
     } else {
       setEditingStaff(null);
@@ -68,7 +72,9 @@ export default function FranchiseStaffManagement() {
         phone: '',
         password: '',
         address: '',
-        role: activeTab === 'managers' ? 'FRANCHISE' : 'FRANCHISE_STAFF'
+        role: activeTab === 'managers' ? 'FRANCHISE' : 'FRANCHISE_STAFF',
+        shift_start_time: '10:00',
+        shift_end_time: '19:00'
       });
     }
     setShowModal(true);
@@ -83,7 +89,9 @@ export default function FranchiseStaffManagement() {
       phone: '',
       password: '',
       address: '',
-      role: 'FRANCHISE_STAFF'
+      role: 'FRANCHISE_STAFF',
+      shift_start_time: '10:00',
+      shift_end_time: '19:00'
     });
   };
 
@@ -576,23 +584,80 @@ export default function FranchiseStaffManagement() {
               </div>
 
               {formData.role === 'FRANCHISE_STAFF' && (
-                <div style={{ marginBottom: 24 }}>
-                  <label style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Address</label>
-                  <textarea
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    rows={2}
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      border: '1px solid #d1d5db',
-                      borderRadius: 8,
-                      fontSize: 14,
-                      resize: 'vertical',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                </div>
+                <>
+                  <div style={{ marginBottom: 16 }}>
+                    <label style={{ display: 'block', marginBottom: 6, fontWeight: 500 }}>Address</label>
+                    <textarea
+                      value={formData.address}
+                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                      rows={2}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: 8,
+                        fontSize: 14,
+                        resize: 'vertical',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ 
+                    display: 'grid', 
+                    gridTemplateColumns: '1fr 1fr', 
+                    gap: 16, 
+                    marginBottom: 24,
+                    background: '#f0f9ff',
+                    padding: 16,
+                    borderRadius: 8,
+                    border: '1px solid #bfdbfe'
+                  }}>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: 6, fontWeight: 500, fontSize: 14 }}>
+                        Shift Start Time *
+                      </label>
+                      <input
+                        type="time"
+                        value={formData.shift_start_time}
+                        onChange={(e) => setFormData({ ...formData, shift_start_time: e.target.value })}
+                        required
+                        style={{
+                          width: '100%',
+                          padding: '10px 14px',
+                          border: '1px solid #d1d5db',
+                          borderRadius: 8,
+                          fontSize: 14,
+                          boxSizing: 'border-box',
+                          background: 'white'
+                        }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: 6, fontWeight: 500, fontSize: 14 }}>
+                        Shift End Time *
+                      </label>
+                      <input
+                        type="time"
+                        value={formData.shift_end_time}
+                        onChange={(e) => setFormData({ ...formData, shift_end_time: e.target.value })}
+                        required
+                        style={{
+                          width: '100%',
+                          padding: '10px 14px',
+                          border: '1px solid #d1d5db',
+                          borderRadius: 8,
+                          fontSize: 14,
+                          boxSizing: 'border-box',
+                          background: 'white'
+                        }}
+                      />
+                    </div>
+                    <div style={{ gridColumn: '1 / -1', fontSize: 12, color: '#1e40af', marginTop: -6 }}>
+                      📅 Staff can check in anytime before shift start. Late checkins allowed up to +5% tolerance (e.g., 9-hour shift = 27-min grace period). Early checkouts penalized if before scheduled end time.
+                    </div>
+                  </div>
+                </>
               )}
 
               <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end' }}>

@@ -2,6 +2,17 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { attendanceService } from '../../services/attendanceService';
 import { staffService } from '../../services/staffService';
+import {
+  CalendarIcon,
+  ChartIcon,
+  CameraIcon,
+  UserIcon,
+  ShoesIcon,
+  KitchenIcon,
+  CleanIcon,
+  CloseIcon,
+  ImageIcon
+} from '../../components/AttendanceIcons';
 
 /**
  * Franchise Staff Attendance Page
@@ -19,6 +30,7 @@ export default function StaffAttendance() {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [activeTab, setActiveTab] = useState('today'); // 'today' or 'history'
+  const [selectedRecord, setSelectedRecord] = useState(null); // For viewing photos
 
   // Camera state
   const [cameraMode, setCameraMode] = useState(null); // 'selfie', 'shoes', 'mesa', 'standing'
@@ -269,13 +281,18 @@ export default function StaffAttendance() {
             {attendanceHistory.map((record, index) => (
               <div
                 key={record.id || index}
+                onClick={() => setSelectedRecord(record)}
                 style={{
                   padding: 16,
                   borderBottom: index < attendanceHistory.length - 1 ? '1px solid #f3f4f6' : 'none',
                   display: 'flex',
                   justifyContent: 'space-between',
-                  alignItems: 'center'
+                  alignItems: 'center',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s'
                 }}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#f9fafb'}
+                onMouseLeave={(e) => e.currentTarget.style.background = 'white'}
               >
                 <div>
                   <div style={{ fontWeight: 600, color: '#1f2937', marginBottom: 4 }}>
@@ -295,6 +312,11 @@ export default function StaffAttendance() {
                       <> → {new Date(record.checkout_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</>
                     )}
                   </div>
+                  {(record.selfie_photo || record.shoes_photo || record.mesa_photo || record.standing_area_photo) && (
+                    <div style={{ fontSize: 11, color: '#3b82f6', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <CameraIcon size={14} color="#3b82f6" /> Click to view photos
+                    </div>
+                  )}
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div style={{
@@ -302,14 +324,14 @@ export default function StaffAttendance() {
                     borderRadius: 20,
                     fontSize: 12,
                     fontWeight: 600,
-                    background: record.status === 'PRESENT' ? '#d1fae5' :
+                    background: (record.status === 'PRESENT' || record.status === 'ON_TIME') ? '#d1fae5' :
                       record.status === 'LATE' ? '#fef3c7' :
                         record.status === 'ABSENT' ? '#fee2e2' : '#f3f4f6',
-                    color: record.status === 'PRESENT' ? '#065f46' :
+                    color: (record.status === 'PRESENT' || record.status === 'ON_TIME') ? '#065f46' :
                       record.status === 'LATE' ? '#92400e' :
                         record.status === 'ABSENT' ? '#991b1b' : '#6b7280'
                   }}>
-                    {record.status || (record.checkin_time ? (record.is_late ? 'LATE' : 'PRESENT') : 'ABSENT')}
+                    {record.status === 'ON_TIME' ? 'ON TIME' : (record.status || (record.checkin_time ? (record.is_late ? 'LATE' : 'PRESENT') : 'ABSENT'))}
                   </div>
                   <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 4 }}>
                     {formatDuration(record.shift_duration)}
@@ -437,10 +459,14 @@ export default function StaffAttendance() {
               borderRadius: 8,
               fontSize: 14,
               fontWeight: 600,
-              cursor: 'pointer'
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6
             }}
           >
-            📅 Today
+            <CalendarIcon size={16} color={activeTab === 'today' ? 'white' : '#6b7280'} /> Today
           </button>
           <button
             onClick={() => setActiveTab('history')}
@@ -453,32 +479,36 @@ export default function StaffAttendance() {
               borderRadius: 8,
               fontSize: 14,
               fontWeight: 600,
-              cursor: 'pointer'
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6
             }}
           >
-            📊 History & Score
+            <ChartIcon size={16} color={activeTab === 'history' ? 'white' : '#6b7280'} /> History & Score
           </button>
         </div>
 
-        {activeTab === 'history' ? (
-          renderHistoryTab()
-        ) : (
-          <div style={{
-            background: 'white',
-            borderRadius: 16,
-            padding: 32,
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-          }}>
-            <div style={{ textAlign: 'center', marginBottom: 24 }}>
-              <div style={{ fontSize: 48, marginBottom: 16 }}>🕐</div>
-              <h1 style={{ fontSize: 24, fontWeight: 700, color: '#1f2937', marginBottom: 8 }}>
-                Currently Working
-              </h1>
-              <p style={{ color: '#6b7280' }}>
-                Checked in at {checkInTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                {todayAttendance.is_late && <span style={{ color: '#f59e0b', marginLeft: 8 }}>⚠️ Late</span>}
-              </p>
-            </div>
+      {activeTab === 'history' ? (
+        renderHistoryTab()
+      ) : (
+        <div style={{
+          background: 'white',
+          borderRadius: 16,
+          padding: 32,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+        }}>
+          <div style={{ textAlign: 'center', marginBottom: 24 }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>🕐</div>
+            <h1 style={{ fontSize: 24, fontWeight: 700, color: '#1f2937', marginBottom: 8 }}>
+              Currently Working
+            </h1>
+            <p style={{ color: '#6b7280' }}>
+              Checked in at {checkInTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+              {todayAttendance.is_late && <span style={{ color: '#f59e0b', marginLeft: 8 }}>⚠️ Late</span>}
+            </p>
+          </div>
 
             {success && (
               <div style={{
@@ -592,10 +622,14 @@ export default function StaffAttendance() {
             borderRadius: 8,
             fontSize: 14,
             fontWeight: 600,
-            cursor: 'pointer'
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6
           }}
         >
-          📅 Today
+          <CalendarIcon size={16} color={activeTab === 'today' ? 'white' : '#6b7280'} /> Today
         </button>
         <button
           onClick={() => setActiveTab('history')}
@@ -608,10 +642,14 @@ export default function StaffAttendance() {
             borderRadius: 8,
             fontSize: 14,
             fontWeight: 600,
-            cursor: 'pointer'
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6
           }}
         >
-          📊 History & Score
+          <ChartIcon size={16} color={activeTab === 'history' ? 'white' : '#6b7280'} /> History & Score
         </button>
       </div>
 
@@ -697,12 +735,15 @@ export default function StaffAttendance() {
                   color: 'white',
                   padding: '8px 16px',
                   borderRadius: 8,
-                  fontSize: 14
+                  fontSize: 14,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6
                 }}>
-                  {cameraMode === 'selfie' && '📸 Take selfie showing grooming & hair cap'}
-                  {cameraMode === 'shoes' && '👟 Take photo of your shoes/boots'}
-                  {cameraMode === 'mesa' && '🍽️ Take photo of kitchen/pit with food items visible'}
-                  {cameraMode === 'standing' && '🧹 Take photo of standing/work area for cleanliness'}
+                  {cameraMode === 'selfie' && <><CameraIcon size={16} color="white" /> Take selfie showing grooming & hair cap</>}
+                  {cameraMode === 'shoes' && <><CameraIcon size={16} color="white" /> Take photo of your shoes/boots</>}
+                  {cameraMode === 'mesa' && <><CameraIcon size={16} color="white" /> Take photo of kitchen/pit with food items visible</>}
+                  {cameraMode === 'standing' && <><CameraIcon size={16} color="white" /> Take photo of standing/work area for cleanliness</>}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 12 }}>
@@ -782,7 +823,7 @@ export default function StaffAttendance() {
                   </>
                 ) : (
                   <>
-                    <div style={{ fontSize: 32, marginBottom: 8 }}>🤳</div>
+                    <div style={{ marginBottom: 8 }}><UserIcon size={40} color="#d1d5db" /></div>
                     <div style={{ fontWeight: 600, marginBottom: 4 }}>Selfie Photo</div>
                     <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 12 }}>
                       Show grooming & hair cap
@@ -841,7 +882,7 @@ export default function StaffAttendance() {
                   </>
                 ) : (
                   <>
-                    <div style={{ fontSize: 32, marginBottom: 8 }}>👟</div>
+                    <div style={{ marginBottom: 8 }}><ShoesIcon size={40} color="#d1d5db" /></div>
                     <div style={{ fontWeight: 600, marginBottom: 4 }}>Shoes Photo</div>
                     <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 12 }}>
                       Show your boots/shoes
@@ -900,7 +941,7 @@ export default function StaffAttendance() {
                   </>
                 ) : (
                   <>
-                    <div style={{ fontSize: 32, marginBottom: 8 }}>🍽️</div>
+                    <div style={{ marginBottom: 8 }}><KitchenIcon size={40} color="#d1d5db" /></div>
                     <div style={{ fontWeight: 600, marginBottom: 4 }}>Kitchen/Mesa Photo</div>
                     <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 12 }}>
                       Show overall pit with food items
@@ -959,7 +1000,7 @@ export default function StaffAttendance() {
                   </>
                 ) : (
                   <>
-                    <div style={{ fontSize: 32, marginBottom: 8 }}>🧹</div>
+                    <div style={{ marginBottom: 8 }}><CleanIcon size={40} color="#d1d5db" /></div>
                     <div style={{ fontWeight: 600, marginBottom: 4 }}>Standing Area Photo</div>
                     <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 12 }}>
                       Show work area cleanliness
@@ -1015,6 +1056,131 @@ export default function StaffAttendance() {
               <li>Check in before 10:00 AM to avoid late penalty</li>
               <li>Minimum shift duration is 9 hours</li>
             </ul>
+          </div>
+        </div>
+      )}
+
+      {/* Photo Viewer Modal */}
+      {selectedRecord && (
+        <div
+          onClick={() => setSelectedRecord(null)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: 20
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'white',
+              borderRadius: 16,
+              maxWidth: 900,
+              width: '100%',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              padding: 24
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#1f2937' }}>
+                  Attendance Photos
+                </h2>
+                <p style={{ margin: '4px 0 0', fontSize: 14, color: '#6b7280' }}>
+                  {new Date(selectedRecord.date || selectedRecord.checkin_time).toLocaleDateString('en-IN', {
+                    weekday: 'long',
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric'
+                  })}
+                  {' · '}
+                  {selectedRecord.checkin_time && new Date(selectedRecord.checkin_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedRecord(null)}
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  border: 'none',
+                  background: '#f3f4f6',
+                  color: '#6b7280',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+              >
+                <CloseIcon size={18} color="#6b7280" />
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+              {selectedRecord.selfie_photo && (
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#6b7280', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <UserIcon size={16} color="#6b7280" /> Selfie
+                  </div>
+                  <img
+                    src={selectedRecord.selfie_photo}
+                    alt="Selfie"
+                    style={{ width: '100%', borderRadius: 12, border: '2px solid #e5e7eb' }}
+                  />
+                </div>
+              )}
+              {selectedRecord.shoes_photo && (
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#6b7280', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <ShoesIcon size={16} color="#6b7280" /> Shoes
+                  </div>
+                  <img
+                    src={selectedRecord.shoes_photo}
+                    alt="Shoes"
+                    style={{ width: '100%', borderRadius: 12, border: '2px solid #e5e7eb' }}
+                  />
+                </div>
+              )}
+              {selectedRecord.mesa_photo && (
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#6b7280', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <KitchenIcon size={16} color="#6b7280" /> Kitchen Overview (Mesa)
+                  </div>
+                  <img
+                    src={selectedRecord.mesa_photo}
+                    alt="Kitchen Overview"
+                    style={{ width: '100%', borderRadius: 12, border: '2px solid #e5e7eb' }}
+                  />
+                </div>
+              )}
+              {selectedRecord.standing_area_photo && (
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#6b7280', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <CleanIcon size={16} color="#6b7280" /> Standing Area
+                  </div>
+                  <img
+                    src={selectedRecord.standing_area_photo}
+                    alt="Standing Area"
+                    style={{ width: '100%', borderRadius: 12, border: '2px solid #e5e7eb' }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {(!selectedRecord.selfie_photo && !selectedRecord.shoes_photo && !selectedRecord.mesa_photo && !selectedRecord.standing_area_photo) && (
+              <div style={{ textAlign: 'center', padding: 40, color: '#6b7280' }}>
+                No photos available for this attendance record
+              </div>
+            )}
           </div>
         </div>
       )}

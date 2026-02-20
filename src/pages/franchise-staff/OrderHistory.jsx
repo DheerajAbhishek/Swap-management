@@ -5,6 +5,7 @@ import { formatCurrency, formatDateTime } from '../../utils/constants';
 import orderService from '../../services/orderService';
 import OrderComplaintModal from '../../components/Supply/OrderComplaintModal';
 import { useAuth } from '../../context/AuthContext';
+import { useNotificationEvents } from '../../context/NotificationContext';
 
 /**
  * Franchise Staff Order History - View all orders
@@ -12,6 +13,7 @@ import { useAuth } from '../../context/AuthContext';
  */
 export default function StaffOrderHistory() {
   const { user } = useAuth();
+  const { subscribe } = useNotificationEvents();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -34,7 +36,15 @@ export default function StaffOrderHistory() {
 
   useEffect(() => {
     fetchOrders();
-  }, []);
+
+    // Subscribe to order-related notifications for auto-refresh
+    const unsubscribe = subscribe(['ORDER_STATUS', 'ORDER_NEW'], () => {
+      console.log('🔄 Refreshing orders due to notification');
+      fetchOrders();
+    });
+
+    return unsubscribe;
+  }, [subscribe]);
 
   const filteredOrders = filterStatus
     ? orders.filter(o => o.status === filterStatus)

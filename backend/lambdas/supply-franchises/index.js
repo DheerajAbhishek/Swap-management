@@ -83,6 +83,11 @@ exports.handler = async (event) => {
         return await getFranchiseItems(franchiseId);
       }
 
+      // Get franchise vendors with details
+      if (franchiseId && subResource === 'vendors') {
+        return await getFranchiseVendors(franchiseId);
+      }
+
       // Vendors can see their assigned franchises
       if (decoded.role === 'KITCHEN') {
         return await getFranchisesByVendor(decoded.vendor_id || decoded.userId);
@@ -189,20 +194,21 @@ async function getAllFranchises() {
   };
 }
 
-// Get franchises by vendor (cluster)
+// Get franchises by vendor (supports vendor_1_id or vendor_2_id)
 async function getFranchisesByVendor(vendorId) {
   const result = await dynamoDB.send(new ScanCommand({
-    TableName: TABLE_NAME,
-    FilterExpression: 'vendor_id = :vendorId',
-    ExpressionAttributeValues: {
-      ':vendorId': vendorId
-    }
+    TableName: TABLE_NAME
   }));
+
+  // Filter franchises that have this vendor as vendor_1 or vendor_2
+  const franchises = (result.Items || []).filter(franchise => {
+    return franchise.vendor_1_id === vendorId || franchise.vendor_2_id === vendorId;
+  });
 
   return {
     statusCode: 200,
     headers,
-    body: JSON.stringify(result.Items || [])
+    body: JSON.stringify(franchises)
   };
 }
 
@@ -231,6 +237,7 @@ async function createFranchise(data) {
   }
 
   const franchiseId = `franchise-${Date.now()}`;
+  
   const franchise = {
     id: franchiseId,
     name: data.name,
@@ -238,8 +245,10 @@ async function createFranchise(data) {
     location: data.location || '',
     phone: data.phone || '',
     email: data.email,
-    vendor_id: data.vendor_id || '', // Assigned vendor/kitchen
-    vendor_name: data.vendor_name || '',
+    vendor_1_id: data.vendor_1_id || '', // SFI vendor
+    vendor_1_name: data.vendor_1_name || '',
+    vendor_2_id: data.vendor_2_id || '', // Raw Materials vendor
+    vendor_2_name: data.vendor_2_name || '',
     royalty_percent: data.royalty_percent || 5,
     status: 'ACTIVE',
     created_at: new Date().toISOString(),
@@ -258,8 +267,6 @@ async function createFranchise(data) {
     role: 'FRANCHISE',
     franchise_id: franchiseId,
     franchise_name: data.name,
-    vendor_id: data.vendor_id || '',
-    vendor_name: data.vendor_name || '', // Kitchen name
     created_at: new Date().toISOString()
   };
 
@@ -294,7 +301,7 @@ async function updateFranchise(franchiseId, data) {
   const expressionAttributeNames = {};
   const expressionAttributeValues = {};
 
-  const fields = ['name', 'owner_name', 'location', 'phone', 'email', 'vendor_id', 'vendor_name', 'royalty_percent', 'status'];
+  const fields = ['name', 'owner_name', 'location', 'phone', 'email', 'royalty_percent', 'status', 'vendor_1_id', 'vendor_1_name', 'vendor_2_id', 'vendor_2_name'];
 
   fields.forEach(field => {
     if (data[field] !== undefined) {
@@ -317,36 +324,42 @@ async function updateFranchise(franchiseId, data) {
     ReturnValues: 'ALL_NEW'
   }));
 
-  // Also update the franchise user record if vendor changed
-  if (data.vendor_id !== undefined || data.vendor_name !== undefined) {
-    try {
-      const userUpdateExpressions = [];
-      const userAttributeNames = {};
-      const userAttributeValues = {};
+  // Also update the corresponding user record in supply_users table
+  // This keeps email, name, and franchise_name in sync for login
+  const userUpdateExpressions = [];
+  const userExpressionAttributeNames = {};
+  const userExpressionAttributeValues = {};
 
-      if (data.vendor_id !== undefined) {
-        userUpdateExpressions.push('#vendor_id = :vendor_id');
-        userAttributeNames['#vendor_id'] = 'vendor_id';
-        userAttributeValues[':vendor_id'] = data.vendor_id;
-      }
-      if (data.vendor_name !== undefined) {
-        userUpdateExpressions.push('#vendor_name = :vendor_name');
-        userAttributeNames['#vendor_name'] = 'vendor_name';
-        userAttributeValues[':vendor_name'] = data.vendor_name;
-      }
+  if (data.email !== undefined) {
+    userUpdateExpressions.push('#email = :email');
+    userExpressionAttributeNames['#email'] = 'email';
+    userExpressionAttributeValues[':email'] = data.email;
+  }
 
-      if (userUpdateExpressions.length > 0) {
-        await dynamoDB.send(new UpdateCommand({
-          TableName: USERS_TABLE,
-          Key: { id: franchiseId },
-          UpdateExpression: `SET ${userUpdateExpressions.join(', ')}`,
-          ExpressionAttributeNames: userAttributeNames,
-          ExpressionAttributeValues: userAttributeValues
-        }));
-      }
-    } catch (err) {
-      console.error('Failed to update user vendor info:', err);
-    }
+  if (data.name !== undefined) {
+    userUpdateExpressions.push('#name = :name');
+    userExpressionAttributeNames['#name'] = 'name';
+    userExpressionAttributeValues[':name'] = data.name;
+    
+    // Also update franchise_name field
+    userUpdateExpressions.push('#franchise_name = :franchise_name');
+    userExpressionAttributeNames['#franchise_name'] = 'franchise_name';
+    userExpressionAttributeValues[':franchise_name'] = data.name;
+  }
+
+  // Always update the updated_at timestamp
+  if (userUpdateExpressions.length > 0) {
+    userUpdateExpressions.push('#updated_at = :updated_at');
+    userExpressionAttributeNames['#updated_at'] = 'updated_at';
+    userExpressionAttributeValues[':updated_at'] = new Date().toISOString();
+
+    await dynamoDB.send(new UpdateCommand({
+      TableName: USERS_TABLE,
+      Key: { id: franchiseId },
+      UpdateExpression: `SET ${userUpdateExpressions.join(', ')}`,
+      ExpressionAttributeNames: userExpressionAttributeNames,
+      ExpressionAttributeValues: userExpressionAttributeValues
+    }));
   }
 
   return {
@@ -404,6 +417,67 @@ async function resetPassword(franchiseId, data) {
   };
 }
 
+// ============ FRANCHISE VENDOR MANAGEMENT ============
+
+// Get franchise vendors with details (vendor_1 and vendor_2)
+async function getFranchiseVendors(franchiseId) {
+  const franchiseResult = await dynamoDB.send(new GetCommand({
+    TableName: TABLE_NAME,
+    Key: { id: franchiseId }
+  }));
+
+  if (!franchiseResult.Item) {
+    return { statusCode: 404, headers, body: JSON.stringify({ error: 'Franchise not found' }) };
+  }
+
+  const franchise = franchiseResult.Item;
+  const vendors = [];
+
+  // Fetch vendor_1 details (SFI)
+  if (franchise.vendor_1_id) {
+    try {
+      const vendor1Result = await dynamoDB.send(new GetCommand({
+        TableName: 'supply_vendors',
+        Key: { id: franchise.vendor_1_id }
+      }));
+      if (vendor1Result.Item) {
+        vendors.push({
+          ...vendor1Result.Item,
+          slot: 1,
+          slot_name: 'SFI'
+        });
+      }
+    } catch (err) {
+      console.error(`Failed to fetch vendor_1:`, err);
+    }
+  }
+
+  // Fetch vendor_2 details (Raw Materials)
+  if (franchise.vendor_2_id) {
+    try {
+      const vendor2Result = await dynamoDB.send(new GetCommand({
+        TableName: 'supply_vendors',
+        Key: { id: franchise.vendor_2_id }
+      }));
+      if (vendor2Result.Item) {
+        vendors.push({
+          ...vendor2Result.Item,
+          slot: 2,
+          slot_name: 'RAW_MATERIALS'
+        });
+      }
+    } catch (err) {
+      console.error(`Failed to fetch vendor_2:`, err);
+    }
+  }
+
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify(vendors)
+  };
+}
+
 // ============ FRANCHISE ITEM MANAGEMENT ============
 
 // Get franchise items
@@ -436,6 +510,18 @@ async function addFranchiseItem(franchiseId, itemData) {
     return { statusCode: 404, headers, body: JSON.stringify({ error: 'Franchise not found' }) };
   }
 
+  // Validate vendor_id (must be vendor_1_id or vendor_2_id)
+  const franchise = getResult.Item;
+  const vendorId = itemData.vendor_id;
+  
+  if (!vendorId || (vendorId !== franchise.vendor_1_id && vendorId !== franchise.vendor_2_id)) {
+    return { 
+      statusCode: 400, 
+      headers, 
+      body: JSON.stringify({ error: 'Invalid vendor_id. Must be one of the franchise assigned vendors.' }) 
+    };
+  }
+
   const items = getResult.Item.items || [];
   const newItem = {
     id: `item-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -443,6 +529,7 @@ async function addFranchiseItem(franchiseId, itemData) {
     category: itemData.category || '',
     unit: itemData.unit || 'kg',
     price: parseFloat(itemData.price) || 0,
+    vendor_id: vendorId, // Track which vendor supplies this item
     created_at: new Date().toISOString()
   };
 

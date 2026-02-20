@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { notificationService } from '../services/notificationService';
 import { useToast } from './ToastNotification';
+import { useNotificationEvents } from '../context/NotificationContext';
 
 const NotificationBell = () => {
   const [notifications, setNotifications] = useState([]);
@@ -12,7 +13,9 @@ const NotificationBell = () => {
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
   const toast = useToast();
+  const { broadcast } = useNotificationEvents();
   const prevUnreadCountRef = useRef(0);
+  const prevNotificationsRef = useRef([]);
 
   // Handle resize
   useEffect(() => {
@@ -85,22 +88,31 @@ const NotificationBell = () => {
       const newNotifications = data.notifications || [];
       const newUnreadCount = data.unreadCount || 0;
 
-      // Show toast for new notifications (only if not initial load)
-      if (!isInitial && newUnreadCount > prevUnreadCountRef.current && newNotifications.length > 0) {
-        const latestUnread = newNotifications.find(n => !n.is_read);
-        if (latestUnread) {
-          const toastType = getToastType(latestUnread.type);
-          toast[toastType](
-            latestUnread.title || 'New Notification',
-            latestUnread.message,
-            { duration: 6000 }
-          );
-        }
+      // Detect new notifications and broadcast events (only if not initial load)
+      if (!isInitial && newNotifications.length > 0) {
+        const prevIds = new Set(prevNotificationsRef.current.map(n => n.id));
+        const newOnes = newNotifications.filter(n => !prevIds.has(n.id));
+
+        newOnes.forEach(notif => {
+          // Show toast for unread notifications
+          if (!notif.is_read) {
+            const toastType = getToastType(notif.type);
+            toast[toastType](
+              notif.title || 'New Notification',
+              notif.message,
+              { duration: 6000 }
+            );
+          }
+
+          // Broadcast event for selective refresh
+          broadcast(notif.type, notif);
+        });
       }
 
       setNotifications(newNotifications);
       setUnreadCount(newUnreadCount);
       prevUnreadCountRef.current = newUnreadCount;
+      prevNotificationsRef.current = newNotifications;
     } catch (err) {
       console.error('Failed to fetch notifications:', err);
     }

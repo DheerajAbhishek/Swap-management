@@ -84,6 +84,48 @@ export const orderService = {
   },
 
   /**
+   * Edit order (Franchise) - Only allowed within 24hrs and status PLACED
+   * @param {string} orderId
+   * @param {Object} orderData - { vendor_id, items: Array }
+   * @returns {Promise<Object>}
+   */
+  async editOrder(orderId, orderData) {
+    const response = await api.put(`/orders/${orderId}`, orderData);
+    return response.data;
+  },
+
+  /**
+   * Delete order (Franchise) - Only allowed within 24hrs and status PLACED
+   * @param {string} orderId
+   * @returns {Promise<Object>}
+   */
+  async deleteOrder(orderId) {
+    const response = await api.delete(`/orders/${orderId}`);
+    return response.data;
+  },
+
+  /**
+   * Check if order can be modified (client-side check)
+   * @param {Object} order - Order object with created_at and status
+   * @returns {Object} - { allowed: boolean, reason: string }
+   */
+  canModifyOrder(order) {
+    if (order.status !== 'PLACED') {
+      return { allowed: false, reason: 'Order cannot be modified after it has been accepted' };
+    }
+
+    const createdAt = new Date(order.created_at);
+    const now = new Date();
+    const hoursSinceCreation = (now - createdAt) / (1000 * 60 * 60);
+
+    if (hoursSinceCreation > 24) {
+      return { allowed: false, reason: 'Order can only be modified within 24 hours of creation' };
+    }
+
+    return { allowed: true, reason: '' };
+  },
+
+  /**
    * Get received items report
    * @param {Object} params - { startDate, endDate, franchiseId }
    * @returns {Promise<Array>}

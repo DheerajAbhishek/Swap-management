@@ -7,7 +7,7 @@ import { DEFAULT_UOM_OPTIONS, formatCurrency } from '../../utils/constants';
 /**
  * OrderForm - Form for creating purchase orders (Mobile Responsive)
  */
-export default function OrderForm({ items, onSubmit, loading }) {
+export default function OrderForm({ items, onSubmit, loading, initialData, submitButtonText = 'Place Order', error, isSubmitting }) {
   const [rows, setRows] = useState([
     { item: '', qty: '', uom: '', price: 0, total: 0 }
   ]);
@@ -16,6 +16,25 @@ export default function OrderForm({ items, onSubmit, loading }) {
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
   const dateInputRef = useRef(null);
   const flatpickrInstance = useRef(null);
+
+  // Initialize form with existing data if editing
+  useEffect(() => {
+    if (initialData) {
+      if (initialData.items && initialData.items.length > 0) {
+        const initialRows = initialData.items.map(item => ({
+          item: item.item_name,
+          qty: item.qty || item.ordered_qty || '',
+          uom: item.uom || 'kg',
+          price: item.unit_price || 0,
+          total: (item.qty || item.ordered_qty || 0) * (item.unit_price || 0)
+        }));
+        setRows(initialRows);
+      }
+      if (initialData.notes) {
+        setNotes(initialData.notes);
+      }
+    }
+  }, [initialData]);
 
   // Handle resize
   useEffect(() => {
@@ -47,6 +66,10 @@ export default function OrderForm({ items, onSubmit, loading }) {
   }, []);
 
   const itemNames = items.map(i => i.name);
+
+  console.log('OrderForm - Total items available:', items.length);
+  console.log('OrderForm - Item names:', itemNames);
+  console.log('OrderForm - Current rows:', rows);
 
   const handleItemChange = (index, itemName) => {
     const updated = [...rows];
@@ -93,7 +116,8 @@ export default function OrderForm({ items, onSubmit, loading }) {
       return;
     }
 
-    if (!deliveryDate) {
+    // Only require delivery date for new orders (not when editing)
+    if (!initialData && !deliveryDate) {
       alert('Please select a delivery date');
       return;
     }
@@ -383,22 +407,35 @@ export default function OrderForm({ items, onSubmit, loading }) {
         />
       </div>
 
+      {error && (
+        <div style={{
+          padding: 12,
+          background: '#fee2e2',
+          borderRadius: 8,
+          marginBottom: 16,
+          color: '#dc2626',
+          fontSize: 14
+        }}>
+          {error}
+        </div>
+      )}
+
       <button
         type="submit"
-        disabled={loading}
+        disabled={loading || isSubmitting}
         style={{
           width: '100%',
           padding: '14px 24px',
           borderRadius: 10,
           border: 'none',
-          background: loading ? '#9ca3af' : 'linear-gradient(135deg, #3b82f6, #2563eb)',
+          background: (loading || isSubmitting) ? '#9ca3af' : 'linear-gradient(135deg, #3b82f6, #2563eb)',
           color: 'white',
           fontSize: 16,
           fontWeight: 600,
-          cursor: loading ? 'not-allowed' : 'pointer'
+          cursor: (loading || isSubmitting) ? 'not-allowed' : 'pointer'
         }}
       >
-        {loading ? 'Submitting...' : 'Submit Order'}
+        {(loading || isSubmitting) ? 'Submitting...' : submitButtonText}
       </button>
     </form>
   );

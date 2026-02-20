@@ -2,6 +2,14 @@ import { useState, useEffect } from 'react';
 import { attendanceService } from '../../services/attendanceService';
 import { franchiseService } from '../../services/franchiseService';
 import ToastNotification from '../../components/ToastNotification';
+import {
+  CameraIcon,
+  UserIcon,
+  ShoesIcon,
+  KitchenIcon,
+  CleanIcon,
+  CloseIcon
+} from '../../components/AttendanceIcons';
 
 /**
  * Admin Attendance View
@@ -19,6 +27,7 @@ export default function AdminAttendanceView() {
     end_date: new Date().toISOString().split('T')[0]
   });
   const [expandedRecord, setExpandedRecord] = useState(null);
+  const [selectedRecord, setSelectedRecord] = useState(null); // For viewing photos
 
   useEffect(() => {
     fetchData();
@@ -341,10 +350,35 @@ export default function AdminAttendanceView() {
                           padding: 16,
                           background: '#f9fafb'
                         }}>
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                          <div style={{ marginBottom: 16 }}>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedRecord(record);
+                              }}
+                              style={{
+                                padding: '8px 16px',
+                                background: '#3b82f6',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: 8,
+                                fontSize: 13,
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6
+                              }}
+                            >
+                              <CameraIcon size={14} color="white" /> View All Photos
+                            </button>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
                             {record.selfie_photo && (
                               <div>
-                                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>Selfie Photo</div>
+                                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <UserIcon size={14} color="#6b7280" /> Selfie
+                                </div>
                                 <img
                                   src={record.selfie_photo}
                                   alt="Selfie"
@@ -352,14 +386,21 @@ export default function AdminAttendanceView() {
                                     width: '100%',
                                     maxWidth: 200,
                                     borderRadius: 8,
-                                    border: '1px solid #e5e7eb'
+                                    border: '1px solid #e5e7eb',
+                                    cursor: 'pointer'
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedRecord(record);
                                   }}
                                 />
                               </div>
                             )}
                             {record.shoes_photo && (
                               <div>
-                                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8 }}>Shoes Photo</div>
+                                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <ShoesIcon size={14} color="#6b7280" /> Shoes
+                                </div>
                                 <img
                                   src={record.shoes_photo}
                                   alt="Shoes"
@@ -367,7 +408,56 @@ export default function AdminAttendanceView() {
                                     width: '100%',
                                     maxWidth: 200,
                                     borderRadius: 8,
-                                    border: '1px solid #e5e7eb'
+                                    border: '1px solid #e5e7eb',
+                                    cursor: 'pointer'
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedRecord(record);
+                                  }}
+                                />
+                              </div>
+                            )}
+                            {record.mesa_photo && (
+                              <div>
+                                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <KitchenIcon size={14} color="#6b7280" /> Kitchen (Mesa)
+                                </div>
+                                <img
+                                  src={record.mesa_photo}
+                                  alt="Kitchen Overview"
+                                  style={{
+                                    width: '100%',
+                                    maxWidth: 200,
+                                    borderRadius: 8,
+                                    border: '1px solid #e5e7eb',
+                                    cursor: 'pointer'
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedRecord(record);
+                                  }}
+                                />
+                              </div>
+                            )}
+                            {record.standing_area_photo && (
+                              <div>
+                                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                  <CleanIcon size={14} color="#6b7280" /> Standing Area
+                                </div>
+                                <img
+                                  src={record.standing_area_photo}
+                                  alt="Standing Area"
+                                  style={{
+                                    width: '100%',
+                                    maxWidth: 200,
+                                    borderRadius: 8,
+                                    border: '1px solid #e5e7eb',
+                                    cursor: 'pointer'
+                                  }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedRecord(record);
                                   }}
                                 />
                               </div>
@@ -392,6 +482,200 @@ export default function AdminAttendanceView() {
                 </div>
               </div>
             ))}
+        </div>
+      )}
+
+      {/* Photo Viewer Modal */}
+      {selectedRecord && (
+        <div
+          onClick={() => setSelectedRecord(null)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.9)',
+            zIndex: 1000,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+            overflow: 'auto'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: 'white',
+              borderRadius: 16,
+              padding: 24,
+              maxWidth: 1000,
+              width: '100%',
+              maxHeight: '90vh',
+              overflow: 'auto'
+            }}
+          >
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 20,
+              paddingBottom: 16,
+              borderBottom: '2px solid #e5e7eb'
+            }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#111827' }}>
+                  Attendance Photos
+                </h2>
+                <div style={{ fontSize: 14, color: '#6b7280', marginTop: 4 }}>
+                  {selectedRecord.staff_name} - {new Date(selectedRecord.date).toLocaleDateString('en-GB', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric'
+                  })}
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedRecord(null)}
+                style={{
+                  background: '#ef4444',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: '10px 20px',
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6
+                }}
+              >
+                <CloseIcon size={16} color="white" /> Close
+              </button>
+            </div>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+              gap: 20
+            }}>
+              {selectedRecord.selfie_photo && (
+                <div>
+                  <div style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: '#6b7280',
+                    marginBottom: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}>
+                    <UserIcon size={16} color="#6b7280" /> Selfie Photo
+                  </div>
+                  <img
+                    src={selectedRecord.selfie_photo}
+                    alt="Selfie"
+                    style={{
+                      width: '100%',
+                      borderRadius: 12,
+                      border: '2px solid #e5e7eb'
+                    }}
+                  />
+                </div>
+              )}
+
+              {selectedRecord.shoes_photo && (
+                <div>
+                  <div style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: '#6b7280',
+                    marginBottom: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}>
+                    <ShoesIcon size={16} color="#6b7280" /> Shoes Photo
+                  </div>
+                  <img
+                    src={selectedRecord.shoes_photo}
+                    alt="Shoes"
+                    style={{
+                      width: '100%',
+                      borderRadius: 12,
+                      border: '2px solid #e5e7eb'
+                    }}
+                  />
+                </div>
+              )}
+
+              {selectedRecord.mesa_photo && (
+                <div>
+                  <div style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: '#6b7280',
+                    marginBottom: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}>
+                    <KitchenIcon size={16} color="#6b7280" /> Kitchen Overview (Mesa)
+                  </div>
+                  <img
+                    src={selectedRecord.mesa_photo}
+                    alt="Kitchen Overview"
+                    style={{
+                      width: '100%',
+                      borderRadius: 12,
+                      border: '2px solid #e5e7eb'
+                    }}
+                  />
+                </div>
+              )}
+
+              {selectedRecord.standing_area_photo && (
+                <div>
+                  <div style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: '#6b7280',
+                    marginBottom: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}>
+                    <CleanIcon size={16} color="#6b7280" /> Standing Area Photo
+                  </div>
+                  <img
+                    src={selectedRecord.standing_area_photo}
+                    alt="Standing Area"
+                    style={{
+                      width: '100%',
+                      borderRadius: 12,
+                      border: '2px solid #e5e7eb'
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {selectedRecord.deduction_reason && (
+              <div style={{
+                marginTop: 20,
+                padding: 16,
+                background: '#fee2e2',
+                borderRadius: 12,
+                color: '#991b1b',
+                fontSize: 14,
+                fontWeight: 500
+              }}>
+                ⚠️ Deduction Reason: {selectedRecord.deduction_reason}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

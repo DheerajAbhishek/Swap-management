@@ -149,6 +149,7 @@ exports.handler = async (event) => {
         if (httpMethod === 'GET' && !path.match(/\/staff\/[^\/]+$/)) {
             const staffType = event.queryStringParameters?.type; // FRANCHISE_STAFF or KITCHEN_STAFF
             const parentId = event.queryStringParameters?.parentId; // franchise_id or kitchen_id
+            const includeManagers = event.queryStringParameters?.all === 'true'; // Admin requesting all including managers
 
             let filterExpression = '';
             let expressionAttributeValues = {};
@@ -201,7 +202,40 @@ exports.handler = async (event) => {
             }
 
             const result = await dynamodb.send(new ScanCommand(scanParams));
-            const staff = result.Items || [];
+            let staff = result.Items || [];
+
+            // If admin requests all staff including managers, also fetch managers from supply_users table
+            if (user.role === 'ADMIN' && includeManagers) {
+                const managersResult = await dynamodb.send(new ScanCommand({
+                    TableName: USERS_TABLE,
+                    FilterExpression: '#role IN (:r1, :r2)',
+                    ExpressionAttributeNames: { '#role': 'role' },
+                    ExpressionAttributeValues: {
+                        ':r1': 'KITCHEN',
+                        ':r2': 'FRANCHISE'
+                    }
+                }));
+
+                const managers = (managersResult.Items || []).map(m => ({
+                    id: m.id,
+                    name: m.name,
+                    email: m.email,
+                    phone: m.phone || '',
+                    role: m.role,
+                    vendor_id: m.vendor_id,
+                    vendor_name: m.vendor_name,
+                    franchise_id: m.franchise_id,
+                    franchise_name: m.franchise_name,
+                    status: 'ACTIVE', // Managers don't have status field, assume active
+                    created_at: m.created_at,
+                    employee_id: m.id, // Use user id as employee_id for managers
+                    parent_id: m.vendor_id || m.franchise_id,
+                    parent_name: m.vendor_name || m.franchise_name
+                }));
+
+                // Combine staff and managers
+                staff = [...staff, ...managers];
+            }
 
             // Sort by created_at desc
             staff.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
@@ -439,6 +473,12 @@ exports.handler = async (event) => {
                 updated_at: now
             };
 
+            // Add shift times for franchise staff (e.g., "09:00" for 9 AM, "18:00" for 6 PM)
+            if (role === 'FRANCHISE_STAFF') {
+                staffRecord.shift_start_time = body.shift_start_time || '10:00'; // Default 10 AM
+                staffRecord.shift_end_time = body.shift_end_time || '19:00'; // Default 7 PM (9 hours)
+            }
+
             // Only add franchise fields if they have values (avoid empty strings in DynamoDB)
             if (role === 'FRANCHISE_STAFF' && parent_id) {
                 staffRecord.franchise_id = parent_id;
@@ -559,6 +599,14 @@ exports.handler = async (event) => {
             if (body.score !== undefined) {
                 updateExpression.push('score = :score');
                 expressionAttributeValues[':score'] = body.score;
+            }
+            if (body.shift_start_time !== undefined) {
+                updateExpression.push('shift_start_time = :shiftStart');
+                expressionAttributeValues[':shiftStart'] = body.shift_start_time;
+            }
+            if (body.shift_end_time !== undefined) {
+                updateExpression.push('shift_end_time = :shiftEnd');
+                expressionAttributeValues[':shiftEnd'] = body.shift_end_time;
             }
 
             updateExpression.push('updated_at = :updatedAt');

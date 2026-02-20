@@ -1,0 +1,11 @@
+{
+    "name": "supply-attendance",
+    "version": "1.0.0",
+    "description": "Staff attendance tracking with S3 photo storage",
+    "main": "index.js",
+    "dependencies": {
+        "@aws-sdk/client-dynamodb": "^3.470.0",
+        "@aws-sdk/lib-dynamodb": "^3.470.0",
+        "@aws-sdk/client-s3": "^3.470.0"
+    }
+}

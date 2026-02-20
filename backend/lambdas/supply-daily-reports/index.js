@@ -53,9 +53,12 @@ exports.handler = async (event) => {
         if (decoded.role === 'ADMIN') {
           // Admin can see all or filter by franchise
           return await getReportsByDateRange(startDate, endDate, franchiseId);
-        } else if (decoded.role === 'FRANCHISE') {
-          // Franchise can only see their own
+        } else if (decoded.role === 'FRANCHISE' || decoded.role === 'FRANCHISE_STAFF') {
+          // Franchise and staff can only see their own
           return await getReportsByDateRange(startDate, endDate, decoded.franchise_id);
+        } else if (decoded.role === 'KITCHEN' || decoded.role === 'KITCHEN_STAFF') {
+          // Kitchen uses a fixed ID for central kitchen
+          return await getReportsByDateRange(startDate, endDate, 'CENTRAL_KITCHEN');
         }
         return { statusCode: 403, headers, body: JSON.stringify({ error: 'Access denied' }) };
       }
@@ -63,6 +66,8 @@ exports.handler = async (event) => {
       // GET /daily-reports?date=YYYY-MM-DD&franchise_id=xxx
       const date = queryParams.date;
       const franchiseId = queryParams.franchise_id;
+
+      console.log('GET daily-reports - Role:', decoded.role, 'franchise_id:', decoded.franchise_id, 'date:', date);
 
       if (decoded.role === 'ADMIN') {
         if (date && franchiseId) {
@@ -73,11 +78,20 @@ exports.handler = async (event) => {
           return await getReportsByDate(date);
         }
         return await getAllReports();
-      } else if (decoded.role === 'FRANCHISE') {
+      } else if (decoded.role === 'FRANCHISE' || decoded.role === 'FRANCHISE_STAFF') {
         if (date) {
+          console.log('Querying report for franchise_id:', decoded.franchise_id, 'date:', date);
           return await getReport(decoded.franchise_id, date);
         }
         return await getReportsByFranchise(decoded.franchise_id);
+      } else if (decoded.role === 'KITCHEN' || decoded.role === 'KITCHEN_STAFF') {
+        // Kitchen uses a fixed ID since there's one central kitchen
+        const kitchenId = 'CENTRAL_KITCHEN';
+        if (date) {
+          console.log('Querying report for kitchen:', kitchenId, 'date:', date);
+          return await getReport(kitchenId, date);
+        }
+        return await getReportsByFranchise(kitchenId);
       }
 
       return { statusCode: 403, headers, body: JSON.stringify({ error: 'Access denied' }) };
@@ -86,10 +100,13 @@ exports.handler = async (event) => {
     if (method === 'POST') {
       const body = JSON.parse(event.body || '{}');
 
-      // Only FRANCHISE can submit their own report, ADMIN can submit for any
-      if (decoded.role === 'FRANCHISE') {
+      // Only FRANCHISE, FRANCHISE_STAFF, KITCHEN, KITCHEN_STAFF can submit their own report, ADMIN can submit for any
+      if (decoded.role === 'FRANCHISE' || decoded.role === 'FRANCHISE_STAFF') {
         body.franchise_id = decoded.franchise_id;
         body.franchise_name = decoded.franchise_name;
+      } else if (decoded.role === 'KITCHEN' || decoded.role === 'KITCHEN_STAFF') {
+        body.franchise_id = 'CENTRAL_KITCHEN';
+        body.franchise_name = 'Central Kitchen';
       } else if (decoded.role !== 'ADMIN') {
         return { statusCode: 403, headers, body: JSON.stringify({ error: 'Access denied' }) };
       }
@@ -100,9 +117,11 @@ exports.handler = async (event) => {
     if (method === 'PUT') {
       const body = JSON.parse(event.body || '{}');
 
-      // Only FRANCHISE can update their own report, ADMIN can update any
-      if (decoded.role === 'FRANCHISE') {
+      // Only FRANCHISE, FRANCHISE_STAFF, KITCHEN, KITCHEN_STAFF can update their own report, ADMIN can update any
+      if (decoded.role === 'FRANCHISE' || decoded.role === 'FRANCHISE_STAFF') {
         body.franchise_id = decoded.franchise_id;
+      } else if (decoded.role === 'KITCHEN' || decoded.role === 'KITCHEN_STAFF') {
+        body.franchise_id = 'CENTRAL_KITCHEN';
       } else if (decoded.role !== 'ADMIN') {
         return { statusCode: 403, headers, body: JSON.stringify({ error: 'Access denied' }) };
       }
@@ -124,6 +143,8 @@ exports.handler = async (event) => {
 
 // Get single report by franchise and date
 async function getReport(franchiseId, date) {
+  console.log('getReport called with franchiseId:', franchiseId, 'date:', date);
+
   const result = await dynamoDB.send(new GetCommand({
     TableName: TABLE_NAME,
     Key: {
@@ -131,6 +152,8 @@ async function getReport(franchiseId, date) {
       report_date: date
     }
   }));
+
+  console.log('getReport result:', result.Item ? 'Found' : 'Not Found', result.Item);
 
   return {
     statusCode: 200,

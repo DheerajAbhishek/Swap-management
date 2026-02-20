@@ -13,6 +13,9 @@ import { useAuth } from '../../context/AuthContext';
 export default function CreateOrder() {
   const { user } = useAuth();
   const [items, setItems] = useState([]);
+  const [allItems, setAllItems] = useState([]); // Store all items
+  const [vendors, setVendors] = useState([]); // Store franchise vendors
+  const [selectedVendor, setSelectedVendor] = useState(''); // Selected vendor ID
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -41,16 +44,46 @@ export default function CreateOrder() {
           return;
         }
 
+        // Get franchise data to load vendors
+        const franchiseData = await franchiseService.getFranchise(franchiseId);
+        const franchiseVendors = [];
+        
+        if (franchiseData.vendor_1_id && franchiseData.vendor_1_name) {
+          franchiseVendors.push({
+            id: franchiseData.vendor_1_id,
+            name: franchiseData.vendor_1_name,
+            type: 'SFI'
+          });
+        }
+        if (franchiseData.vendor_2_id && franchiseData.vendor_2_name) {
+          franchiseVendors.push({
+            id: franchiseData.vendor_2_id,
+            name: franchiseData.vendor_2_name,
+            type: 'Raw Materials'
+          });
+        }
+        
+        setVendors(franchiseVendors);
+
         // Transform to format expected by OrderForm
         const formattedItems = data.map(item => ({
           id: item.id,
           name: item.name,
           category: item.category || 'General',
           defaultUom: item.unit || 'kg',
-          standard_price: item.price // franchise custom price
+          standard_price: item.price, // franchise custom price
+          vendor_id: item.vendor_id // track which vendor supplies this
         }));
 
-        setItems(formattedItems);
+        setAllItems(formattedItems);
+        
+        // Auto-select first vendor if available
+        if (franchiseVendors.length > 0) {
+          setSelectedVendor(franchiseVendors[0].id);
+          setItems(formattedItems.filter(item => item.vendor_id === franchiseVendors[0].id));
+        } else {
+          setItems(formattedItems);
+        }
       } catch (err) {
         console.error('Failed to fetch items:', err);
         setError('Failed to load items');
@@ -68,7 +101,22 @@ export default function CreateOrder() {
     setRefreshKey(prev => prev + 1);
   };
 
+  // Handle vendor change
+  const handleVendorChange = (vendorId) => {
+    setSelectedVendor(vendorId);
+    if (vendorId) {
+      setItems(allItems.filter(item => item.vendor_id === vendorId));
+    } else {
+      setItems(allItems);
+    }
+  };
+
   const handleSubmit = async (orderData) => {
+    if (!selectedVendor && vendors.length > 0) {
+      setError('Please select a vendor before creating the order');
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
 
@@ -87,7 +135,8 @@ export default function CreateOrder() {
             unit_price: item.unit_price
           };
         }),
-        notes: orderData.notes || ''
+        notes: orderData.notes || '',
+        vendor_id: selectedVendor // Include selected vendor
       };
 
       const result = await orderService.createOrder(apiOrderData);
@@ -240,6 +289,69 @@ export default function CreateOrder() {
           Prices are fixed by Admin and cannot be modified. Select items and enter quantities.
         </div>
       </div>
+
+      {/* Vendor Selection */}
+      {vendors.length > 0 && (
+        <div style={{
+          background: 'white',
+          borderRadius: 12,
+          padding: 20,
+          marginBottom: 16,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+        }}>
+          <label style={{
+            display: 'block',
+            fontSize: 14,
+            fontWeight: 600,
+            color: '#374151',
+            marginBottom: 8
+          }}>
+            Select Vendor *
+          </label>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {vendors.map(vendor => (
+              <button
+                key={vendor.id}
+                type="button"
+                onClick={() => handleVendorChange(vendor.id)}
+                style={{
+                  flex: '1 1 200px',
+                  padding: '16px 24px',
+                  borderRadius: 8,
+                  border: `2px solid ${selectedVendor === vendor.id ? '#10b981' : '#e5e7eb'}`,
+                  background: selectedVendor === vendor.id ? '#f0fdf4' : 'white',
+                  color: selectedVendor === vendor.id ? '#059669' : '#6b7280',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  fontSize: 15
+                }}
+              >
+                {vendor.type === 'SFI' ? '🍳' : '🥬'} {vendor.name}
+                <div style={{ 
+                  fontSize: 12, 
+                  marginTop: 4,
+                  color: selectedVendor === vendor.id ? '#059669' : '#9ca3af'
+                }}>
+                  {vendor.type}
+                </div>
+              </button>
+            ))}
+          </div>
+          {selectedVendor && (
+            <div style={{
+              marginTop: 12,
+              padding: 12,
+              background: '#eff6ff',
+              borderRadius: 8,
+              fontSize: 13,
+              color: '#1e40af'
+            }}>
+              📦 {items.length} items available from selected vendor
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={{
         background: 'white',

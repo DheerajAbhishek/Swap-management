@@ -202,11 +202,12 @@ exports.handler = async (event) => {
 
         // PUT /discrepancies/{id}/resolve
         if (httpMethod === 'PUT' && path.includes('/resolve')) {
-            if (user.role !== 'ADMIN') {
+            // Allow ADMIN and KITCHEN (vendor) to resolve
+            if (user.role !== 'ADMIN' && user.role !== 'KITCHEN' && user.role !== 'KITCHEN_STAFF') {
                 return {
                     statusCode: 403,
                     headers,
-                    body: JSON.stringify({ error: 'Only admin can resolve discrepancies' })
+                    body: JSON.stringify({ error: 'Only admin and kitchen can resolve discrepancies' })
                 };
             }
 
@@ -248,6 +249,31 @@ exports.handler = async (event) => {
                 statusCode: 200,
                 headers,
                 body: JSON.stringify({ message: 'Discrepancy resolved' })
+            };
+        }
+
+        // GET /discrepancies/order/{orderId} - Get discrepancies for an order
+        if (httpMethod === 'GET' && path.includes('/order/')) {
+            const orderId = event.pathParameters?.orderId;
+
+            const result = await dynamodb.send(new ScanCommand({
+                TableName: DISCREPANCIES_TABLE,
+                FilterExpression: 'order_id = :orderId',
+                ExpressionAttributeValues: { ':orderId': orderId }
+            }));
+
+            const discrepancies = result.Items || [];
+            const hasUnresolved = discrepancies.some(d => !d.resolved);
+
+            return {
+                statusCode: 200,
+                headers,
+                body: JSON.stringify({
+                    discrepancies,
+                    hasUnresolved,
+                    count: discrepancies.length,
+                    unresolvedCount: discrepancies.filter(d => !d.resolved).length
+                })
             };
         }
 

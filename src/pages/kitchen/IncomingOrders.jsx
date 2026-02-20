@@ -5,6 +5,7 @@ import orderService from '../../services/orderService';
 import OrderComplaintModal from '../../components/Supply/OrderComplaintModal';
 import DispatchModal from '../../components/Supply/DispatchModal';
 import { useAuth } from '../../context/AuthContext';
+import { useNotificationEvents } from '../../context/NotificationContext';
 
 /**
  * Kitchen Incoming Orders - Accept and dispatch orders
@@ -12,6 +13,7 @@ import { useAuth } from '../../context/AuthContext';
  */
 export default function IncomingOrders() {
   const { user } = useAuth();
+  const { subscribe } = useNotificationEvents();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -36,7 +38,15 @@ export default function IncomingOrders() {
 
   useEffect(() => {
     fetchOrders();
-  }, []);
+
+    // Subscribe to order-related notifications
+    const unsubscribe = subscribe(['ORDER_NEW', 'ORDER_STATUS'], () => {
+      console.log('🔄 Refreshing orders due to notification');
+      fetchOrders();
+    });
+
+    return unsubscribe;
+  }, [subscribe]);
 
   const filteredOrders = filterStatus === 'ALL'
     ? orders

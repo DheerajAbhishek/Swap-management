@@ -59,24 +59,24 @@ export default function DailyEntry() {
           setSales(report.sales?.toString() || '');
           setClosingData({ items: report.closing_items || [], total: report.closing_total || 0 });
           setWastageData({ items: report.wastage_items || [], total: report.wastage_total || 0 });
-          // Don't use stored bill_total - calculate from orders below
+          setBillTotal(report.bill_total || 0);
         } else {
           // Reset if no report exists
           setExistingReport(null);
           setSales('');
           setClosingData({ items: [], total: 0 });
           setWastageData({ items: [], total: 0 });
-        }
 
-        // ALWAYS calculate bill total from orders (orders are source of truth)
-        const orders = await orderService.getOrders();
-        const receivedOnDate = orders.filter(order => {
-          if (order.status !== 'RECEIVED' && order.status !== 'DELIVERED') return false;
-          const orderDate = order.received_at || order.created_at;
-          return orderDate && orderDate.startsWith(selectedDate);
-        });
-        const total = receivedOnDate.reduce((sum, order) => sum + (order.total_amount || 0), 0);
-        setBillTotal(total);
+          // Load bill total from orders
+          const orders = await orderService.getOrders();
+          const receivedOnDate = orders.filter(order => {
+            if (order.status !== 'RECEIVED' && order.status !== 'DELIVERED') return false;
+            const orderDate = order.received_at || order.created_at;
+            return orderDate && orderDate.startsWith(selectedDate);
+          });
+          const total = receivedOnDate.reduce((sum, order) => sum + (order.total_amount || 0), 0);
+          setBillTotal(total);
+        }
       } catch (err) {
         console.error('Failed to load data:', err);
         // Still try to load bill total from orders

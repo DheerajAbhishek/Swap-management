@@ -1,19 +1,17 @@
 import { useState, useEffect } from 'react';
-import { formatDateTime, formatCurrency } from '../../utils/constants';
+import { formatDateTime } from '../../utils/constants';
 import discrepancyService from '../../services/discrepancyService';
 import { useNotificationEvents } from '../../context/NotificationContext';
 
 /**
- * Admin Discrepancies - View and resolve discrepancies
+ * Franchise View Discrepancies - See reported issues
  */
-export default function Discrepancies() {
+export default function ViewDiscrepancies() {
   const { subscribe } = useNotificationEvents();
   const [discrepancies, setDiscrepancies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filterResolved, setFilterResolved] = useState(false);
-  const [resolvingId, setResolvingId] = useState(null);
-  const [resolutionNotes, setResolutionNotes] = useState('');
 
   const fetchDiscrepancies = async () => {
     try {
@@ -33,30 +31,12 @@ export default function Discrepancies() {
 
     // Subscribe to discrepancy notifications
     const unsubscribe = subscribe(['DISCREPANCY_NEW', 'DISCREPANCY_RESOLVED'], () => {
-      console.log('🔄 Admin refreshing discrepancies due to notification');
+      console.log('🔄 Refreshing discrepancies due to notification');
       fetchDiscrepancies();
     });
 
     return unsubscribe;
   }, [subscribe]);
-
-  const filteredDiscrepancies = discrepancies.filter(d => d.resolved === filterResolved);
-
-  const handleResolve = async (id) => {
-    if (!resolutionNotes.trim()) {
-      alert('Please enter resolution notes');
-      return;
-    }
-
-    try {
-      await discrepancyService.resolveDiscrepancy(id, { resolution_notes: resolutionNotes });
-      await fetchDiscrepancies();
-      setResolvingId(null);
-      setResolutionNotes('');
-    } catch (err) {
-      alert('Failed to resolve discrepancy: ' + err.message);
-    }
-  };
 
   if (loading) {
     return <div style={{ textAlign: 'center', padding: 60, color: '#6b7280' }}>Loading discrepancies...</div>;
@@ -64,15 +44,16 @@ export default function Discrepancies() {
 
   const openCount = discrepancies.filter(d => !d.resolved).length;
   const resolvedCount = discrepancies.filter(d => d.resolved).length;
+  const filteredDiscrepancies = discrepancies.filter(d => d.resolved === filterResolved);
 
   return (
     <div>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, color: '#1f2937', margin: 0 }}>
-          Discrepancies
+          My Discrepancies
         </h1>
         <p style={{ color: '#6b7280', marginTop: 4 }}>
-          Review and resolve quantity discrepancies
+          Track quantity discrepancies you've reported
         </p>
       </div>
 
@@ -96,20 +77,19 @@ export default function Discrepancies() {
         </button>
       </div>
 
-      {/* Discrepancies List */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {filteredDiscrepancies.length === 0 ? (
-          <div style={{
-            background: 'white',
-            borderRadius: 16,
-            padding: 40,
-            textAlign: 'center',
-            color: '#6b7280'
-          }}>
-            No {filterResolved ? 'resolved' : 'open'} discrepancies
-          </div>
-        ) : (
-          filteredDiscrepancies.map((d) => (
+      {filteredDiscrepancies.length === 0 ? (
+        <div style={{
+          background: 'white',
+          borderRadius: 16,
+          padding: 40,
+          textAlign: 'center',
+          color: '#6b7280'
+        }}>
+          No {filterResolved ? 'resolved' : 'open'} discrepancies
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {filteredDiscrepancies.map((d) => (
             <div
               key={d.id}
               style={{
@@ -136,8 +116,7 @@ export default function Discrepancies() {
                     </span>
                   </div>
                   <div style={{ fontSize: 13, color: '#6b7280' }}>
-                    Order: <span style={{ color: '#3b82f6', fontWeight: 500 }}>{d.order_number}</span>
-                    {' • '}{d.franchise_name}
+                    Order: <span style={{ color: '#3b82f6' }}>{d.order_number}</span>
                   </div>
                 </div>
                 <div style={{ textAlign: 'right', fontSize: 12, color: '#6b7280' }}>
@@ -168,15 +147,15 @@ export default function Discrepancies() {
                 </div>
               </div>
 
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>Reported Reason:</div>
-                <div style={{ fontSize: 14 }}>{d.notes}</div>
+              <div style={{ marginBottom: d.photos?.length > 0 || d.resolved ? 16 : 0 }}>
+                <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 4 }}>Your Notes:</div>
+                <div style={{ fontSize: 14 }}>{d.notes || 'No notes provided'}</div>
               </div>
 
               {/* Discrepancy Photos */}
               {d.photos && d.photos.length > 0 && (
                 <div style={{
-                  marginBottom: 16,
+                  marginBottom: d.resolved ? 16 : 0,
                   padding: 16,
                   background: '#fef3c7',
                   borderRadius: 10
@@ -193,7 +172,7 @@ export default function Discrepancies() {
                       <img
                         key={idx}
                         src={photo}
-                        alt={`Discrepancy ${idx + 1}`}
+                        alt={`Photo ${idx + 1}`}
                         onClick={() => window.open(photo, '_blank')}
                         style={{
                           width: 100,
@@ -209,115 +188,42 @@ export default function Discrepancies() {
                 </div>
               )}
 
+              {/* Resolution */}
               {d.resolved && d.resolution_notes && (
                 <div style={{
                   padding: 12,
                   background: '#d1fae5',
-                  borderRadius: 8,
-                  marginBottom: 16
+                  borderRadius: 8
                 }}>
-                  <div style={{ fontSize: 12, color: '#065f46', marginBottom: 4 }}>Resolution:</div>
+                  <div style={{ fontSize: 12, color: '#065f46', fontWeight: 600, marginBottom: 4 }}>Admin Resolution:</div>
                   <div style={{ fontSize: 14, color: '#065f46' }}>{d.resolution_notes}</div>
                   <div style={{ fontSize: 11, color: '#059669', marginTop: 8 }}>
-                    Resolved by {d.resolved_by} on {formatDateTime(d.resolved_at)}
+                    Resolved on {formatDateTime(d.resolved_at)}
                   </div>
                 </div>
               )}
-
-              {!d.resolved && (
-                resolvingId === d.id ? (
-                  <div>
-                    <textarea
-                      value={resolutionNotes}
-                      onChange={(e) => setResolutionNotes(e.target.value)}
-                      placeholder="Enter resolution notes (e.g., credit note issued, replacement sent)..."
-                      style={{
-                        width: '100%',
-                        padding: 12,
-                        borderRadius: 10,
-                        border: '2px solid #e5e7eb',
-                        fontSize: 14,
-                        minHeight: 80,
-                        resize: 'vertical',
-                        marginBottom: 12,
-                        boxSizing: 'border-box'
-                      }}
-                    />
-                    <div style={{ display: 'flex', gap: 12 }}>
-                      <button
-                        onClick={() => { setResolvingId(null); setResolutionNotes(''); }}
-                        style={{
-                          padding: '10px 20px',
-                          borderRadius: 8,
-                          border: 'none',
-                          background: '#e5e7eb',
-                          color: '#374151',
-                          fontSize: 14,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={() => handleResolve(d.id)}
-                        style={{
-                          padding: '10px 20px',
-                          borderRadius: 8,
-                          border: 'none',
-                          background: 'linear-gradient(135deg, #10b981, #059669)',
-                          color: 'white',
-                          fontSize: 14,
-                          fontWeight: 600,
-                          cursor: 'pointer'
-                        }}
-                      >
-                        Mark as Resolved
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => setResolvingId(d.id)}
-                    style={{
-                      padding: '10px 20px',
-                      borderRadius: 8,
-                      border: 'none',
-                      background: 'linear-gradient(135deg, #10b981, #059669)',
-                      color: 'white',
-                      fontSize: 14,
-                      fontWeight: 600,
-                      cursor: 'pointer'
-                    }}
-                  >
-                    Resolve Discrepancy
-                  </button>
-                )
-              )}
             </div>
-          ))
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
 const tabBtn = {
   padding: '10px 20px',
-  borderRadius: 10,
+  borderRadius: 8,
   border: '1px solid #e5e7eb',
   background: 'white',
   color: '#6b7280',
   fontSize: 14,
+  fontWeight: 600,
   cursor: 'pointer'
 };
 
 const activeTabBtn = {
-  padding: '10px 20px',
-  borderRadius: 10,
-  border: '1px solid #3b82f6',
-  background: '#eff6ff',
-  color: '#3b82f6',
-  fontSize: 14,
-  fontWeight: 600,
-  cursor: 'pointer'
+  ...tabBtn,
+  background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+  color: 'white',
+  border: 'none'
 };

@@ -36,6 +36,16 @@ export const discrepancyService = {
   },
 
   /**
+   * Get discrepancies for a specific order
+   * @param {string} orderId
+   * @returns {Promise<Object>} { discrepancies, hasUnresolved, count, unresolvedCount }
+   */
+  async getOrderDiscrepancies(orderId) {
+    const response = await api.get(`/discrepancies/order/${orderId}`);
+    return response.data;
+  },
+
+  /**
    * Resolve a discrepancy (Admin)
    * @param {string} discrepancyId
    * @param {string} notes - Resolution notes
