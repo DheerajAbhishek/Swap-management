@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { staffService } from '../../services/staffService';
 import ToastNotification from '../../components/ToastNotification';
+import StaffScoreCard from '../../components/StaffScoreCard';
+import StaffScoreForm from '../../components/StaffScoreForm';
 
 /**
  * Franchise Staff Management
@@ -9,6 +12,7 @@ import ToastNotification from '../../components/ToastNotification';
  * View attendance and scores
  */
 export default function FranchiseStaffManagement() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [staff, setStaff] = useState([]);
   const [managers, setManagers] = useState([]);
@@ -28,6 +32,8 @@ export default function FranchiseStaffManagement() {
     shift_end_time: '19:00'
   });
   const [submitting, setSubmitting] = useState(false);
+  const [showScoreForm, setShowScoreForm] = useState(false);
+  const [selectedStaffForScore, setSelectedStaffForScore] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -193,6 +199,12 @@ export default function FranchiseStaffManagement() {
         <h1 style={{ fontSize: 24, fontWeight: 700, color: '#1f2937', margin: 0 }}>
           Team Management
         </h1>
+        <button
+          onClick={() => navigate('/franchise/staff-performance')}
+          style={{ padding: '10px 20px', background: '#8b5cf6', color: 'white', border: 'none', borderRadius: 8, fontWeight: 600, cursor: 'pointer', fontSize: 14, marginRight: 8 }}
+        >
+          📊 Staff Performance
+        </button>
         <button
           onClick={() => handleOpenModal()}
           style={{
@@ -392,6 +404,23 @@ export default function FranchiseStaffManagement() {
 
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button
+                          onClick={() => {
+                            setSelectedStaffForScore(member);
+                            setShowScoreForm(true);
+                          }}
+                          style={{
+                            padding: '8px 16px',
+                            background: '#3b82f6',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: 8,
+                            cursor: 'pointer',
+                            fontWeight: 500
+                          }}
+                        >
+                          📊 Update Score
+                        </button>
+                        <button
                           onClick={() => handleOpenModal(member)}
                           style={{
                             padding: '8px 16px',
@@ -434,6 +463,15 @@ export default function FranchiseStaffManagement() {
                         </button>
                       </div>
                     </div>
+                  </div>
+
+                  {/* Performance Score Card */}
+                  <div style={{
+                    marginTop: 16,
+                    paddingTop: 16,
+                    borderTop: '1px solid #e5e7eb'
+                  }}>
+                    <StaffScoreCard staffId={member.id} />
                   </div>
                 </div>
               ))}
@@ -603,10 +641,10 @@ export default function FranchiseStaffManagement() {
                     />
                   </div>
 
-                  <div style={{ 
-                    display: 'grid', 
-                    gridTemplateColumns: '1fr 1fr', 
-                    gap: 16, 
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: 16,
                     marginBottom: 24,
                     background: '#f0f9ff',
                     padding: 16,
@@ -693,6 +731,82 @@ export default function FranchiseStaffManagement() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Score Update Modal */}
+      {showScoreForm && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1001
+        }}>
+          <div style={{
+            background: 'white',
+            borderRadius: 12,
+            width: '90%',
+            maxWidth: 600,
+            maxHeight: '90vh',
+            overflow: 'auto',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)'
+          }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '20px 24px',
+              borderBottom: '1px solid #e5e7eb'
+            }}>
+              <h3 style={{
+                margin: 0,
+                fontSize: 18,
+                fontWeight: 600,
+                color: '#1f2937'
+              }}>
+                Update Score: {selectedStaffForScore?.name}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowScoreForm(false);
+                  setSelectedStaffForScore(null);
+                }}
+                style={{
+                  width: 32,
+                  height: 32,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'transparent',
+                  border: 'none',
+                  borderRadius: 6,
+                  fontSize: 20,
+                  color: '#6b7280',
+                  cursor: 'pointer'
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <StaffScoreForm
+              staffId={selectedStaffForScore?.id}
+              onSuccess={() => {
+                setShowScoreForm(false);
+                setSelectedStaffForScore(null);
+                setToast({ show: true, message: 'Score updated successfully!', type: 'success' });
+              }}
+              onCancel={() => {
+                setShowScoreForm(false);
+                setSelectedStaffForScore(null);
+              }}
+            />
           </div>
         </div>
       )}

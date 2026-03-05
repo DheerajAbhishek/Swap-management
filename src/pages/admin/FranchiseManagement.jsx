@@ -28,6 +28,7 @@ export default function FranchiseManagement() {
     password: '',
     vendor_1_id: '',
     vendor_2_id: '',
+    vendor_3_id: '',
     royalty_percent: 5
   });
 
@@ -74,6 +75,10 @@ export default function FranchiseManagement() {
         const vendor2 = vendors.find(v => v.id === editForm.vendor_2_id);
         editForm.vendor_2_name = vendor2?.name || '';
       }
+      if (editForm.vendor_3_id) {
+        const vendor3 = vendors.find(v => v.id === editForm.vendor_3_id);
+        editForm.vendor_3_name = vendor3?.name || '';
+      }
       await franchiseService.updateFranchise(editingId, editForm);
       await loadData();
       setEditingId(null);
@@ -106,6 +111,10 @@ export default function FranchiseManagement() {
         const vendor2 = vendors.find(v => v.id === newFranchise.vendor_2_id);
         newFranchise.vendor_2_name = vendor2?.name || '';
       }
+      if (newFranchise.vendor_3_id) {
+        const vendor3 = vendors.find(v => v.id === newFranchise.vendor_3_id);
+        newFranchise.vendor_3_name = vendor3?.name || '';
+      }
       const result = await franchiseService.createFranchise(newFranchise);
       // Show generated credentials if returned
       if (result.credentials) {
@@ -125,6 +134,7 @@ export default function FranchiseManagement() {
         password: '',
         vendor_1_id: '',
         vendor_2_id: '',
+        vendor_3_id: '',
         royalty_percent: 5
       });
       setShowAddForm(false);
@@ -497,6 +507,28 @@ export default function FranchiseManagement() {
                 ))}
               </select>
             </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                Vendor 3 - General/Mixed (Optional)
+              </label>
+              <select
+                value={newFranchise.vendor_3_id}
+                onChange={(e) => setNewFranchise({ ...newFranchise, vendor_3_id: e.target.value })}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: 8,
+                  border: '1px solid #d1d5db',
+                  fontSize: 14,
+                  boxSizing: 'border-box'
+                }}
+              >
+                <option value="">Select General Vendor (Optional)...</option>
+                {vendors.filter(v => v.id !== newFranchise.vendor_1_id && v.id !== newFranchise.vendor_2_id).map(v => (
+                  <option key={v.id} value={v.id}>{v.name}</option>
+                ))}
+              </select>
+            </div>
             <InputField
               label="Royalty %"
               value={newFranchise.royalty_percent}
@@ -623,6 +655,28 @@ export default function FranchiseManagement() {
                       ))}
                     </select>
                   </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+                      Vendor 3 - General/Mixed
+                    </label>
+                    <select
+                      value={editForm.vendor_3_id || ''}
+                      onChange={(e) => setEditForm({ ...editForm, vendor_3_id: e.target.value })}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        borderRadius: 8,
+                        border: '1px solid #d1d5db',
+                        fontSize: 14,
+                        boxSizing: 'border-box'
+                      }}
+                    >
+                      <option value="">Select...</option>
+                      {vendors.filter(v => v.id !== editForm.vendor_1_id && v.id !== editForm.vendor_2_id).map(v => (
+                        <option key={v.id} value={v.id}>{v.name}</option>
+                      ))}
+                    </select>
+                  </div>
                   <InputField
                     label="Location"
                     value={editForm.location}
@@ -721,6 +775,16 @@ export default function FranchiseManagement() {
                     fontWeight: 500
                   }}>
                     Raw: {franchise.vendor_2_name || 'Not Assigned'}
+                  </div>
+                  <div style={{
+                    background: '#e9d5ff',
+                    color: '#9333ea',
+                    padding: '6px 12px',
+                    borderRadius: 8,
+                    fontSize: 12,
+                    fontWeight: 500
+                  }}>
+                    General: {franchise.vendor_3_name || 'Not Assigned'}
                   </div>
                 </div>
 

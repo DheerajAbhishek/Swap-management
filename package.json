@@ -12,6 +12,7 @@
     "@aws-sdk/lib-dynamodb": "^3.989.0",
     "axios": "^1.13.2",
     "flatpickr": "^4.6.13",
+    "jsonwebtoken": "^9.0.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^7.9.6"

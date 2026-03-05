@@ -1,6 +1,10 @@
 /**
  * Supply Franchises Lambda - Manage franchises (assigned to vendors)
  * Uses AWS SDK v3 for Node.js 18+
+ * 
+ * FEATURES:
+ * - Auto-sync vendor_id on items when vendor assignments change
+ *   (Prevents items showing (0) when vendor is reassigned)
  */
 
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
@@ -194,15 +198,15 @@ async function getAllFranchises() {
   };
 }
 
-// Get franchises by vendor (supports vendor_1_id or vendor_2_id)
+// Get franchises by vendor (supports vendor_1_id, vendor_2_id, or vendor_3_id)
 async function getFranchisesByVendor(vendorId) {
   const result = await dynamoDB.send(new ScanCommand({
     TableName: TABLE_NAME
   }));
 
-  // Filter franchises that have this vendor as vendor_1 or vendor_2
+  // Filter franchises that have this vendor as vendor_1, vendor_2, or vendor_3
   const franchises = (result.Items || []).filter(franchise => {
-    return franchise.vendor_1_id === vendorId || franchise.vendor_2_id === vendorId;
+    return franchise.vendor_1_id === vendorId || franchise.vendor_2_id === vendorId || franchise.vendor_3_id === vendorId;
   });
 
   return {
@@ -237,7 +241,7 @@ async function createFranchise(data) {
   }
 
   const franchiseId = `franchise-${Date.now()}`;
-  
+
   const franchise = {
     id: franchiseId,
     name: data.name,
@@ -249,6 +253,8 @@ async function createFranchise(data) {
     vendor_1_name: data.vendor_1_name || '',
     vendor_2_id: data.vendor_2_id || '', // Raw Materials vendor
     vendor_2_name: data.vendor_2_name || '',
+    vendor_3_id: data.vendor_3_id || '', // General/Mixed vendor
+    vendor_3_name: data.vendor_3_name || '',
     royalty_percent: data.royalty_percent || 5,
     status: 'ACTIVE',
     created_at: new Date().toISOString(),
@@ -297,11 +303,24 @@ async function createFranchise(data) {
 
 // Update franchise
 async function updateFranchise(franchiseId, data) {
+  // First, get current franchise data to check if vendors are changing
+  const currentFranchise = await dynamoDB.send(new GetCommand({
+    TableName: TABLE_NAME,
+    Key: { id: franchiseId }
+  }));
+
+  const oldVendor1Id = currentFranchise.Item?.vendor_1_id;
+  const oldVendor2Id = currentFranchise.Item?.vendor_2_id;
+  const oldVendor3Id = currentFranchise.Item?.vendor_3_id;
+  const newVendor1Id = data.vendor_1_id;
+  const newVendor2Id = data.vendor_2_id;
+  const newVendor3Id = data.vendor_3_id;
+
   const updateExpressions = [];
   const expressionAttributeNames = {};
   const expressionAttributeValues = {};
 
-  const fields = ['name', 'owner_name', 'location', 'phone', 'email', 'royalty_percent', 'status', 'vendor_1_id', 'vendor_1_name', 'vendor_2_id', 'vendor_2_name'];
+  const fields = ['name', 'owner_name', 'location', 'phone', 'email', 'royalty_percent', 'status', 'vendor_1_id', 'vendor_1_name', 'vendor_2_id', 'vendor_2_name', 'vendor_3_id', 'vendor_3_name'];
 
   fields.forEach(field => {
     if (data[field] !== undefined) {
@@ -315,6 +334,47 @@ async function updateFranchise(franchiseId, data) {
   expressionAttributeNames['#updated_at'] = 'updated_at';
   expressionAttributeValues[':updated_at'] = new Date().toISOString();
 
+  // AUTO-DELETE OLD VENDOR ITEMS: If vendors changed, delete items from the old vendor
+  let updatedItems = currentFranchise.Item?.items || [];
+  let vendorSyncApplied = false;
+
+  if ((newVendor1Id && newVendor1Id !== oldVendor1Id) || (newVendor2Id && newVendor2Id !== oldVendor2Id) || (newVendor3Id && newVendor3Id !== oldVendor3Id)) {
+    console.log('Vendor assignment changed, removing items from old vendors...');
+
+    const itemsBeforeCount = updatedItems.length;
+
+    // Filter out items that belonged to old vendors
+    updatedItems = updatedItems.filter(item => {
+      // Remove items from old vendor_1 if vendor_1 changed
+      if (oldVendor1Id && newVendor1Id !== oldVendor1Id && item.vendor_id === oldVendor1Id) {
+        console.log(`Removing item "${item.name}" from old vendor_1 (${oldVendor1Id})`);
+        return false;
+      }
+      // Remove items from old vendor_2 if vendor_2 changed
+      if (oldVendor2Id && newVendor2Id !== oldVendor2Id && item.vendor_id === oldVendor2Id) {
+        console.log(`Removing item "${item.name}" from old vendor_2 (${oldVendor2Id})`);
+        return false;
+      }
+      // Remove items from old vendor_3 if vendor_3 changed
+      if (oldVendor3Id && newVendor3Id !== oldVendor3Id && item.vendor_id === oldVendor3Id) {
+        console.log(`Removing item "${item.name}" from old vendor_3 (${oldVendor3Id})`);
+        return false;
+      }
+      return true;
+    });
+
+    const itemsRemoved = itemsBeforeCount - updatedItems.length;
+    if (itemsRemoved > 0) {
+      console.log(`✓ Removed ${itemsRemoved} items from old vendor(s)`);
+    }
+
+    // Add items array to update expression
+    updateExpressions.push('#items = :items');
+    expressionAttributeNames['#items'] = 'items';
+    expressionAttributeValues[':items'] = updatedItems;
+    vendorSyncApplied = true;
+  }
+
   const result = await dynamoDB.send(new UpdateCommand({
     TableName: TABLE_NAME,
     Key: { id: franchiseId },
@@ -323,6 +383,10 @@ async function updateFranchise(franchiseId, data) {
     ExpressionAttributeValues: expressionAttributeValues,
     ReturnValues: 'ALL_NEW'
   }));
+
+  if (vendorSyncApplied) {
+    console.log(`✓ Vendor sync completed - ${updatedItems.length} items checked`);
+  }
 
   // Also update the corresponding user record in supply_users table
   // This keeps email, name, and franchise_name in sync for login
@@ -340,7 +404,7 @@ async function updateFranchise(franchiseId, data) {
     userUpdateExpressions.push('#name = :name');
     userExpressionAttributeNames['#name'] = 'name';
     userExpressionAttributeValues[':name'] = data.name;
-    
+
     // Also update franchise_name field
     userUpdateExpressions.push('#franchise_name = :franchise_name');
     userExpressionAttributeNames['#franchise_name'] = 'franchise_name';
@@ -471,6 +535,25 @@ async function getFranchiseVendors(franchiseId) {
     }
   }
 
+  // Fetch vendor_3 details (General/Mixed)
+  if (franchise.vendor_3_id) {
+    try {
+      const vendor3Result = await dynamoDB.send(new GetCommand({
+        TableName: 'supply_vendors',
+        Key: { id: franchise.vendor_3_id }
+      }));
+      if (vendor3Result.Item) {
+        vendors.push({
+          ...vendor3Result.Item,
+          slot: 3,
+          slot_name: 'GENERAL_MIXED'
+        });
+      }
+    } catch (err) {
+      console.error(`Failed to fetch vendor_3:`, err);
+    }
+  }
+
   return {
     statusCode: 200,
     headers,
@@ -510,15 +593,15 @@ async function addFranchiseItem(franchiseId, itemData) {
     return { statusCode: 404, headers, body: JSON.stringify({ error: 'Franchise not found' }) };
   }
 
-  // Validate vendor_id (must be vendor_1_id or vendor_2_id)
+  // Validate vendor_id (must be vendor_1_id, vendor_2_id, or vendor_3_id)
   const franchise = getResult.Item;
   const vendorId = itemData.vendor_id;
-  
-  if (!vendorId || (vendorId !== franchise.vendor_1_id && vendorId !== franchise.vendor_2_id)) {
-    return { 
-      statusCode: 400, 
-      headers, 
-      body: JSON.stringify({ error: 'Invalid vendor_id. Must be one of the franchise assigned vendors.' }) 
+
+  if (!vendorId || (vendorId !== franchise.vendor_1_id && vendorId !== franchise.vendor_2_id && vendorId !== franchise.vendor_3_id)) {
+    return {
+      statusCode: 400,
+      headers,
+      body: JSON.stringify({ error: 'Invalid vendor_id. Must be one of the franchise assigned vendors.' })
     };
   }
 

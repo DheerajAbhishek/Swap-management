@@ -21,8 +21,17 @@ export default function VendorItems() {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterCategory, setFilterCategory] = useState('');
 
+    // Copy items feature
+    const [showCopyModal, setShowCopyModal] = useState(false);
+    const [allVendors, setAllVendors] = useState([]);
+    const [sourceVendorId, setSourceVendorId] = useState('');
+    const [sourceVendorItems, setSourceVendorItems] = useState([]);
+    const [selectedItemsToCopy, setSelectedItemsToCopy] = useState([]);
+    const [copyLoading, setCopyLoading] = useState(false);
+
     useEffect(() => {
         loadVendor();
+        loadAllVendors();
     }, [vendorId]);
 
     const loadVendor = async () => {
@@ -36,6 +45,79 @@ export default function VendorItems() {
             alert('Failed to load vendor data');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const loadAllVendors = async () => {
+        try {
+            const data = await vendorService.getVendors();
+            setAllVendors(data.filter(v => v.id !== vendorId)); // Exclude current vendor
+        } catch (err) {
+            console.error('Failed to load vendors:', err);
+        }
+    };
+
+    const handleSourceVendorChange = async (selectedVendorId) => {
+        setSourceVendorId(selectedVendorId);
+        setSelectedItemsToCopy([]);
+
+        if (selectedVendorId) {
+            setCopyLoading(true);
+            try {
+                const vendorData = await vendorService.getVendor(selectedVendorId);
+                setSourceVendorItems(vendorData.items || []);
+            } catch (err) {
+                alert('Failed to load vendor items: ' + err.message);
+            } finally {
+                setCopyLoading(false);
+            }
+        } else {
+            setSourceVendorItems([]);
+        }
+    };
+
+    const toggleItemSelection = (item) => {
+        setSelectedItemsToCopy(prev => {
+            const exists = prev.find(i => i.id === item.id);
+            if (exists) {
+                return prev.filter(i => i.id !== item.id);
+            } else {
+                return [...prev, item];
+            }
+        });
+    };
+
+    const handleCopyItems = async () => {
+        if (selectedItemsToCopy.length === 0) {
+            alert('Please select at least one item to copy');
+            return;
+        }
+
+        setSaving(true);
+        try {
+            // Prepare items for copying (remove id so new ones are generated)
+            const itemsToCopy = selectedItemsToCopy.map(item => ({
+                name: item.name,
+                category: item.category,
+                unit: item.unit,
+                vendor_price: item.vendor_price,
+                franchise_price: item.franchise_price || 0
+            }));
+
+            const result = await vendorService.addBulkVendorItems(vendorId, itemsToCopy);
+            setItems([...items, ...result.added]);
+
+            // Reset and close modal
+            setShowCopyModal(false);
+            setSourceVendorId('');
+            setSourceVendorItems([]);
+            setSelectedItemsToCopy([]);
+
+            alert(`Successfully copied ${result.added.length} items!`);
+        } catch (err) {
+            alert('Failed to copy items: ' + (err.response?.data?.error || err.message));
+        } finally {
+            setSaving(false);
         }
     };
 
@@ -159,23 +241,46 @@ export default function VendorItems() {
                             Manage items and prices for this vendor • {items.length} items
                         </p>
                     </div>
-                    <button
-                        onClick={() => setShowAddForm(true)}
-                        style={{
-                            padding: '10px 20px',
-                            borderRadius: 8,
-                            border: 'none',
-                            background: '#10b981',
-                            color: 'white',
-                            fontWeight: 600,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 8
-                        }}
-                    >
-                        + Add Item
-                    </button>
+                    <div style={{ display: 'flex', gap: 12 }}>
+                        <button
+                            onClick={() => setShowCopyModal(true)}
+                            style={{
+                                padding: '10px 20px',
+                                borderRadius: 8,
+                                border: '1px solid #3b82f6',
+                                background: 'white',
+                                color: '#3b82f6',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8
+                            }}
+                        >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                            </svg>
+                            Copy from Vendor
+                        </button>
+                        <button
+                            onClick={() => setShowAddForm(true)}
+                            style={{
+                                padding: '10px 20px',
+                                borderRadius: 8,
+                                border: 'none',
+                                background: '#10b981',
+                                color: 'white',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 8
+                            }}
+                        >
+                            + Add Item
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -386,6 +491,266 @@ export default function VendorItems() {
                                 }}
                             >
                                 {saving ? 'Adding...' : `Add ${newItems.filter(i => i.name && i.vendor_price).length} Item${newItems.filter(i => i.name && i.vendor_price).length !== 1 ? 's' : ''}`}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Copy Items Modal */}
+            {showCopyModal && (
+                <div style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    background: 'rgba(0,0,0,0.5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 1000,
+                    padding: 20
+                }}>
+                    <div style={{
+                        background: 'white',
+                        borderRadius: 12,
+                        width: '100%',
+                        maxWidth: 900,
+                        maxHeight: '90vh',
+                        overflow: 'auto',
+                        boxShadow: '0 10px 40px rgba(0,0,0,0.2)'
+                    }}>
+                        {/* Modal Header */}
+                        <div style={{
+                            padding: '20px 24px',
+                            borderBottom: '1px solid #e5e7eb',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            position: 'sticky',
+                            top: 0,
+                            background: 'white',
+                            zIndex: 1
+                        }}>
+                            <div>
+                                <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#1f2937' }}>
+                                    Copy Items from Another Vendor
+                                </h2>
+                                <p style={{ margin: '4px 0 0', fontSize: 14, color: '#6b7280' }}>
+                                    Select items to copy to {vendor?.name}
+                                </p>
+                            </div>
+                            <button
+                                onClick={() => {
+                                    setShowCopyModal(false);
+                                    setSourceVendorId('');
+                                    setSourceVendorItems([]);
+                                    setSelectedItemsToCopy([]);
+                                }}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    fontSize: 24,
+                                    color: '#9ca3af',
+                                    cursor: 'pointer',
+                                    padding: 4
+                                }}
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <div style={{ padding: 24 }}>
+                            {/* Source Vendor Selection */}
+                            <div style={{ marginBottom: 24 }}>
+                                <label style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#374151', marginBottom: 8 }}>
+                                    Select Source Vendor
+                                </label>
+                                <select
+                                    value={sourceVendorId}
+                                    onChange={(e) => handleSourceVendorChange(e.target.value)}
+                                    style={{
+                                        width: '100%',
+                                        padding: '10px 12px',
+                                        borderRadius: 8,
+                                        border: '1px solid #d1d5db',
+                                        fontSize: 14
+                                    }}
+                                >
+                                    <option value="">-- Select a vendor --</option>
+                                    {allVendors.map(v => (
+                                        <option key={v.id} value={v.id}>
+                                            {v.name} ({v.items?.length || 0} items)
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Items List */}
+                            {copyLoading ? (
+                                <div style={{ textAlign: 'center', padding: 40, color: '#6b7280' }}>
+                                    Loading items...
+                                </div>
+                            ) : sourceVendorItems.length > 0 ? (
+                                <>
+                                    <div style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        marginBottom: 12
+                                    }}>
+                                        <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: '#374151' }}>
+                                            Select items to copy ({selectedItemsToCopy.length} selected)
+                                        </p>
+                                        <div style={{ display: 'flex', gap: 8 }}>
+                                            <button
+                                                onClick={() => setSelectedItemsToCopy([...sourceVendorItems])}
+                                                style={{
+                                                    padding: '6px 12px',
+                                                    borderRadius: 6,
+                                                    border: '1px solid #d1d5db',
+                                                    background: 'white',
+                                                    fontSize: 13,
+                                                    cursor: 'pointer',
+                                                    color: '#374151'
+                                                }}
+                                            >
+                                                Select All
+                                            </button>
+                                            <button
+                                                onClick={() => setSelectedItemsToCopy([])}
+                                                style={{
+                                                    padding: '6px 12px',
+                                                    borderRadius: 6,
+                                                    border: '1px solid #d1d5db',
+                                                    background: 'white',
+                                                    fontSize: 13,
+                                                    cursor: 'pointer',
+                                                    color: '#374151'
+                                                }}
+                                            >
+                                                Clear All
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div style={{
+                                        maxHeight: 400,
+                                        overflow: 'auto',
+                                        border: '1px solid #e5e7eb',
+                                        borderRadius: 8
+                                    }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                            <thead style={{ position: 'sticky', top: 0, background: '#f9fafb', zIndex: 1 }}>
+                                                <tr>
+                                                    <th style={{ ...thStyle, width: 40 }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedItemsToCopy.length === sourceVendorItems.length}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) {
+                                                                    setSelectedItemsToCopy([...sourceVendorItems]);
+                                                                } else {
+                                                                    setSelectedItemsToCopy([]);
+                                                                }
+                                                            }}
+                                                            style={{ cursor: 'pointer', width: 16, height: 16 }}
+                                                        />
+                                                    </th>
+                                                    <th style={thStyle}>Item Name</th>
+                                                    <th style={thStyle}>Category</th>
+                                                    <th style={thStyle}>Unit</th>
+                                                    <th style={thStyle}>Vendor Price</th>
+                                                    <th style={thStyle}>Franchise Price</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {sourceVendorItems.map(item => (
+                                                    <tr
+                                                        key={item.id}
+                                                        onClick={() => toggleItemSelection(item)}
+                                                        style={{
+                                                            cursor: 'pointer',
+                                                            background: selectedItemsToCopy.find(i => i.id === item.id) ? '#eff6ff' : 'white'
+                                                        }}
+                                                    >
+                                                        <td style={tdStyle}>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={!!selectedItemsToCopy.find(i => i.id === item.id)}
+                                                                onChange={() => toggleItemSelection(item)}
+                                                                style={{ cursor: 'pointer', width: 16, height: 16 }}
+                                                            />
+                                                        </td>
+                                                        <td style={tdStyle}>{item.name}</td>
+                                                        <td style={tdStyle}>{item.category || '-'}</td>
+                                                        <td style={tdStyle}>{item.unit}</td>
+                                                        <td style={tdStyle}>{formatCurrency(item.vendor_price)}</td>
+                                                        <td style={tdStyle}>{formatCurrency(item.franchise_price)}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </>
+                            ) : sourceVendorId ? (
+                                <div style={{
+                                    textAlign: 'center',
+                                    padding: 40,
+                                    color: '#6b7280',
+                                    background: '#f9fafb',
+                                    borderRadius: 8
+                                }}>
+                                    This vendor has no items
+                                </div>
+                            ) : null}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div style={{
+                            padding: '16px 24px',
+                            borderTop: '1px solid #e5e7eb',
+                            display: 'flex',
+                            justifyContent: 'flex-end',
+                            gap: 12,
+                            position: 'sticky',
+                            bottom: 0,
+                            background: 'white'
+                        }}>
+                            <button
+                                onClick={() => {
+                                    setShowCopyModal(false);
+                                    setSourceVendorId('');
+                                    setSourceVendorItems([]);
+                                    setSelectedItemsToCopy([]);
+                                }}
+                                style={{
+                                    padding: '10px 20px',
+                                    borderRadius: 8,
+                                    border: '1px solid #d1d5db',
+                                    background: 'white',
+                                    color: '#6b7280',
+                                    fontWeight: 600,
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleCopyItems}
+                                disabled={saving || selectedItemsToCopy.length === 0}
+                                style={{
+                                    padding: '10px 20px',
+                                    borderRadius: 8,
+                                    border: 'none',
+                                    background: saving || selectedItemsToCopy.length === 0 ? '#9ca3af' : '#3b82f6',
+                                    color: 'white',
+                                    fontWeight: 600,
+                                    cursor: saving || selectedItemsToCopy.length === 0 ? 'not-allowed' : 'pointer'
+                                }}
+                            >
+                                {saving ? 'Copying...' : `Copy ${selectedItemsToCopy.length} Item${selectedItemsToCopy.length !== 1 ? 's' : ''}`}
                             </button>
                         </div>
                     </div>

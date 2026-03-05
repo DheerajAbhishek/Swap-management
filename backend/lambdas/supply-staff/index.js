@@ -7,6 +7,9 @@ const dynamodb = DynamoDBDocumentClient.from(client);
 
 const STAFF_TABLE = 'supply_staff';
 const USERS_TABLE = 'supply_users';
+const ATTENDANCE_TABLE = 'supply_staff_attendance';
+const HYGIENE_MONITORS_TABLE = 'supply_hygiene_monitors';
+const STAFF_SCORES_TABLE = 'staff_scores';
 
 // CORS headers
 const headers = {
@@ -32,6 +35,219 @@ function generateEmployeeId(role) {
     const num = Date.now().toString().slice(-6);
     return `${prefix}${num}`;
 }
+
+// ==================== STAFF SCORING FUNCTIONS ====================
+
+// Get current month_year in YYYY-MM format
+function getCurrentMonthYear() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}`;
+}
+
+// Validate score value (must be between 0 and 10)
+function validateScore(score, scoreName) {
+    const numScore = parseFloat(score);
+    if (isNaN(numScore) || numScore < 0 || numScore > 10) {
+        throw new Error(`${scoreName} must be a number between 0 and 10`);
+    }
+    return numScore;
+}
+
+// Calculate total score from individual components
+function calculateTotalScore(attendanceScore, hygieneScore, disciplineScore) {
+    return attendanceScore + hygieneScore + disciplineScore;
+}
+
+// Calculate normalized score (0-10 scale)
+function calculateNormalizedScore(totalScore) {
+    return parseFloat((totalScore / 3).toFixed(2));
+}
+
+// Update or create staff score for current month
+async function updateStaffScore(body) {
+    const {
+        staff_id,
+        staff_name,
+        attendance_score,
+        hygiene_score,
+        discipline_score,
+        notes
+    } = body;
+
+    if (!staff_id) {
+        throw new Error('staff_id is required');
+    }
+
+    const validatedAttendance = validateScore(attendance_score ?? 0, 'attendance_score');
+    const validatedHygiene = validateScore(hygiene_score ?? 0, 'hygiene_score');
+    const validatedDiscipline = validateScore(discipline_score ?? 0, 'discipline_score');
+
+    const totalScore = calculateTotalScore(validatedAttendance, validatedHygiene, validatedDiscipline);
+    const normalizedScore = calculateNormalizedScore(totalScore);
+
+    const month_year = getCurrentMonthYear();
+    const now = new Date().toISOString();
+
+    const existingRecord = await dynamodb.send(new GetCommand({
+        TableName: STAFF_SCORES_TABLE,
+        Key: { staff_id, month_year }
+    }));
+
+    const item = {
+        staff_id,
+        month_year,
+        staff_name: staff_name || existingRecord.Item?.staff_name || 'Unknown',
+        attendance_score: validatedAttendance,
+        hygiene_score: validatedHygiene,
+        discipline_score: validatedDiscipline,
+        total_score: totalScore,
+        normalized_score: normalizedScore,
+        updated_at: now,
+        created_at: existingRecord.Item?.created_at || now,
+        notes: notes || ''
+    };
+
+    await dynamodb.send(new PutCommand({
+        TableName: STAFF_SCORES_TABLE,
+        Item: item
+    }));
+
+    return {
+        success: true,
+        message: existingRecord.Item ? 'Score updated successfully' : 'Score created successfully',
+        data: item
+    };
+}
+
+// Get staff score for current month
+async function getCurrentMonthScore(staff_id) {
+    if (!staff_id) {
+        throw new Error('staff_id is required');
+    }
+
+    const month_year = getCurrentMonthYear();
+
+    const result = await dynamodb.send(new GetCommand({
+        TableName: STAFF_SCORES_TABLE,
+        Key: { staff_id, month_year }
+    }));
+
+    if (!result.Item) {
+        return {
+            success: true,
+            message: 'No score found for current month',
+            data: null
+        };
+    }
+
+    return {
+        success: true,
+        data: result.Item
+    };
+}
+
+// Get staff score for a specific month
+async function getMonthScore(staff_id, month_year) {
+    if (!staff_id) {
+        throw new Error('staff_id is required');
+    }
+    if (!month_year) {
+        throw new Error('month_year is required');
+    }
+
+    if (!/^\d{4}-\d{2}$/.test(month_year)) {
+        throw new Error('month_year must be in YYYY-MM format');
+    }
+
+    const result = await dynamodb.send(new GetCommand({
+        TableName: STAFF_SCORES_TABLE,
+        Key: { staff_id, month_year }
+    }));
+
+    if (!result.Item) {
+        return {
+            success: true,
+            message: `No score found for ${month_year}`,
+            data: null
+        };
+    }
+
+    return {
+        success: true,
+        data: result.Item
+    };
+}
+
+// Get staff score history (all months)
+async function getStaffScoreHistory(staff_id, limit = 12) {
+    if (!staff_id) {
+        throw new Error('staff_id is required');
+    }
+
+    const result = await dynamodb.send(new QueryCommand({
+        TableName: STAFF_SCORES_TABLE,
+        KeyConditionExpression: 'staff_id = :staff_id',
+        ExpressionAttributeValues: {
+            ':staff_id': staff_id
+        },
+        ScanIndexForward: false,
+        Limit: parseInt(limit) || 12
+    }));
+
+    return {
+        success: true,
+        staff_id,
+        count: result.Items?.length || 0,
+        data: result.Items || []
+    };
+}
+
+// Get leaderboard for a specific month
+// allowedStaffIds: if provided, only return scores for those staff
+async function getMonthLeaderboard(month_year, limit = 10, allowedStaffIds = null) {
+    const targetMonth = month_year || getCurrentMonthYear();
+
+    if (!/^\d{4}-\d{2}$/.test(targetMonth)) {
+        throw new Error('month_year must be in YYYY-MM format');
+    }
+
+    const result = await dynamodb.send(new QueryCommand({
+        TableName: STAFF_SCORES_TABLE,
+        IndexName: 'month_year-index',
+        KeyConditionExpression: 'month_year = :month_year',
+        ExpressionAttributeValues: {
+            ':month_year': targetMonth
+        },
+        ScanIndexForward: false
+    }));
+
+    let items = result.Items || [];
+
+    // Filter to only allowed staff if specified (e.g. hygiene monitor scope)
+    if (allowedStaffIds && allowedStaffIds.length > 0) {
+        const allowed = new Set(allowedStaffIds);
+        items = items.filter(item => allowed.has(item.staff_id));
+    }
+
+    // Apply limit after filtering
+    items = items.slice(0, parseInt(limit) || 10);
+
+    const dataWithRank = items.map((item, index) => ({
+        ...item,
+        rank: index + 1
+    }));
+
+    return {
+        success: true,
+        month_year: targetMonth,
+        count: dataWithRank.length,
+        data: dataWithRank
+    };
+}
+
+// ==================== END STAFF SCORING FUNCTIONS ====================
 
 // Verify token and get user info
 function getUserFromToken(event) {
@@ -145,8 +361,109 @@ exports.handler = async (event) => {
             };
         }
 
+        // GET /staff/:id/attendance-stats - Get attendance statistics (MUST come before GET /staff)
+        if (httpMethod === 'GET' && path.includes('/attendance-stats')) {
+            try {
+                const staffId = path.split('/')[2];
+
+                // Get staff info
+                const staffResult = await dynamodb.send(new GetCommand({
+                    TableName: STAFF_TABLE,
+                    Key: { id: staffId }
+                }));
+
+                if (!staffResult.Item) {
+                    return {
+                        statusCode: 404,
+                        headers,
+                        body: JSON.stringify({ error: 'Staff not found' })
+                    };
+                }
+
+                const staff = staffResult.Item;
+
+                // Get all attendance records for this staff
+                const attendanceResult = await dynamodb.send(new ScanCommand({
+                    TableName: ATTENDANCE_TABLE,
+                    FilterExpression: 'staff_id = :staffId',
+                    ExpressionAttributeValues: {
+                        ':staffId': staffId
+                    }
+                }));
+
+                const attendanceRecords = attendanceResult.Items || [];
+
+                // Calculate statistics
+                const joiningDate = staff.joining_date || (staff.created_at ? staff.created_at.split('T')[0] : new Date().toISOString().split('T')[0]);
+                const today = new Date().toISOString().split('T')[0];
+
+                // Total days from joining to today
+                const joiningTime = new Date(joiningDate).getTime();
+                const todayTime = new Date(today).getTime();
+                const totalDaysSinceJoining = Math.max(1, Math.floor((todayTime - joiningTime) / (1000 * 60 * 60 * 24)) + 1);
+
+                const totalDaysWorked = attendanceRecords.filter(r => r.checkin_time).length;
+                const totalDaysLate = attendanceRecords.filter(r => r.is_late).length;
+                const totalDaysOnTime = attendanceRecords.filter(r => r.status === 'ON_TIME' || (r.checkin_time && !r.is_late)).length;
+                const totalMissedCheckouts = attendanceRecords.filter(r => r.status === 'AUTO_CHECKOUT').length;
+                const totalEarlyCheckouts = attendanceRecords.filter(r => r.is_early_checkout).length;
+
+                // Calculate total hours worked
+                const totalMinutesWorked = attendanceRecords.reduce((sum, r) => sum + (r.shift_duration || 0), 0);
+                const totalHoursWorked = Math.floor(totalMinutesWorked / 60);
+
+                // Sort attendance records safely
+                const sortedAttendance = attendanceRecords
+                    .filter(r => r.date) // Only include records with dates
+                    .sort((a, b) => {
+                        const dateA = a.date || '';
+                        const dateB = b.date || '';
+                        return dateB.localeCompare(dateA);
+                    })
+                    .slice(0, 180); // Return 6 months of data for calendar
+
+                return {
+                    statusCode: 200,
+                    headers,
+                    body: JSON.stringify({
+                        staff: {
+                            id: staff.id,
+                            name: staff.name,
+                            employee_id: staff.employee_id,
+                            role: staff.role,
+                            joining_date: joiningDate,
+                            current_score: staff.score || 100,
+                            score_last_reset: staff.score_last_reset
+                        },
+                        statistics: {
+                            total_days_since_joining: totalDaysSinceJoining,
+                            total_days_worked: totalDaysWorked,
+                            total_days_late: totalDaysLate,
+                            total_days_on_time: totalDaysOnTime,
+                            total_missed_checkouts: totalMissedCheckouts,
+                            total_early_checkouts: totalEarlyCheckouts,
+                            total_hours_worked: totalHoursWorked,
+                            attendance_rate: totalDaysSinceJoining > 0 ? ((totalDaysWorked / totalDaysSinceJoining) * 100).toFixed(2) : '0.00'
+                        },
+                        recent_attendance: sortedAttendance
+                    })
+                };
+            } catch (error) {
+                console.error('Error in attendance-stats:', error);
+                return {
+                    statusCode: 500,
+                    headers,
+                    body: JSON.stringify({
+                        error: 'Failed to get attendance stats',
+                        details: error.message,
+                        stack: error.stack
+                    })
+                };
+            }
+        }
+
         // GET /staff - List staff members
-        if (httpMethod === 'GET' && !path.match(/\/staff\/[^\/]+$/)) {
+        if (httpMethod === 'GET' && !path.match(/\/staff\/[^\/]+$/) && !path.includes('/score') && !path.includes('/scores')) {
             const staffType = event.queryStringParameters?.type; // FRANCHISE_STAFF or KITCHEN_STAFF
             const parentId = event.queryStringParameters?.parentId; // franchise_id or kitchen_id
             const includeManagers = event.queryStringParameters?.all === 'true'; // Admin requesting all including managers
@@ -154,6 +471,7 @@ exports.handler = async (event) => {
             let filterExpression = '';
             let expressionAttributeValues = {};
             let expressionAttributeNames = {};
+            let hygieneMonitorFranchiseIds = null; // Store franchise IDs for post-scan filtering
 
             // Admin can see all staff
             if (user.role === 'ADMIN') {
@@ -181,6 +499,29 @@ exports.handler = async (event) => {
                 expressionAttributeValues[':role'] = 'KITCHEN_STAFF';
                 expressionAttributeValues[':parentId'] = user.userId;
             }
+            // Hygiene monitor sees staff from assigned franchises
+            else if (user.role === 'HYGIENE_MONITOR') {
+                // Get hygiene monitor record to fetch franchise_ids
+                const monitorResult = await dynamodb.send(new GetCommand({
+                    TableName: HYGIENE_MONITORS_TABLE,
+                    Key: { id: user.userId }
+                }));
+
+                if (!monitorResult.Item || !monitorResult.Item.franchise_ids || monitorResult.Item.franchise_ids.length === 0) {
+                    return {
+                        statusCode: 200,
+                        headers,
+                        body: JSON.stringify([]) // No assigned franchises, return empty array
+                    };
+                }
+
+                hygieneMonitorFranchiseIds = monitorResult.Item.franchise_ids;
+
+                // Filter to only show FRANCHISE_STAFF from assigned franchises
+                filterExpression = '#role = :role';
+                expressionAttributeNames['#role'] = 'role';
+                expressionAttributeValues[':role'] = 'FRANCHISE_STAFF';
+            }
             else {
                 return {
                     statusCode: 403,
@@ -203,6 +544,11 @@ exports.handler = async (event) => {
 
             const result = await dynamodb.send(new ScanCommand(scanParams));
             let staff = result.Items || [];
+
+            // For hygiene monitors, filter staff by assigned franchise IDs
+            if (hygieneMonitorFranchiseIds) {
+                staff = staff.filter(s => hygieneMonitorFranchiseIds.includes(s.parent_id));
+            }
 
             // If admin requests all staff including managers, also fetch managers from supply_users table
             if (user.role === 'ADMIN' && includeManagers) {
@@ -753,6 +1099,70 @@ exports.handler = async (event) => {
             };
         }
 
+        // PUT /staff/:id/set-score - Admin directly set staff score
+        if (httpMethod === 'PUT' && path.includes('/set-score')) {
+            if (user.role !== 'ADMIN') {
+                return {
+                    statusCode: 403,
+                    headers,
+                    body: JSON.stringify({ error: 'Only admins can directly set scores' })
+                };
+            }
+
+            const staffId = path.split('/')[2];
+            const body = JSON.parse(event.body || '{}');
+            const { score, reason } = body;
+
+            if (typeof score !== 'number' || score < 0 || score > 100) {
+                return {
+                    statusCode: 400,
+                    headers,
+                    body: JSON.stringify({ error: 'Score must be a number between 0 and 100' })
+                };
+            }
+
+            // Get existing staff
+            const existing = await dynamodb.send(new GetCommand({
+                TableName: STAFF_TABLE,
+                Key: { id: staffId }
+            }));
+
+            if (!existing.Item) {
+                return {
+                    statusCode: 404,
+                    headers,
+                    body: JSON.stringify({ error: 'Staff not found' })
+                };
+            }
+
+            const staff = existing.Item;
+            const currentMonth = new Date().toISOString().slice(0, 7);
+            const previousScore = staff.score || 100;
+
+            await dynamodb.send(new UpdateCommand({
+                TableName: STAFF_TABLE,
+                Key: { id: staffId },
+                UpdateExpression: 'SET score = :score, score_last_reset = :resetMonth, updated_at = :updatedAt',
+                ExpressionAttributeValues: {
+                    ':score': score,
+                    ':resetMonth': currentMonth,
+                    ':updatedAt': new Date().toISOString()
+                }
+            }));
+
+            return {
+                statusCode: 200,
+                headers,
+                body: JSON.stringify({
+                    message: 'Score set successfully',
+                    previousScore,
+                    newScore: score,
+                    reason,
+                    updatedBy: user.name
+                })
+            };
+        }
+
         // DELETE /staff/:id or /staff/managers/:id - Delete staff member or manager
         if (httpMethod === 'DELETE') {
             const isManagerDelete = path.includes('/managers/');
@@ -856,6 +1266,163 @@ exports.handler = async (event) => {
                 body: JSON.stringify({ message: 'Staff deleted successfully' })
             };
         }
+
+        // ==================== STAFF SCORING ROUTES ====================
+
+        // POST /staff/score - Update/create staff score
+        if (httpMethod === 'POST' && path.includes('/staff/score')) {
+            try {
+                const body = JSON.parse(event.body || '{}');
+                const result = await updateStaffScore(body);
+
+                return {
+                    statusCode: 200,
+                    headers,
+                    body: JSON.stringify(result)
+                };
+            } catch (error) {
+                console.error('Error updating staff score:', error);
+                return {
+                    statusCode: 400,
+                    headers,
+                    body: JSON.stringify({
+                        success: false,
+                        error: error.message
+                    })
+                };
+            }
+        }
+
+        // GET /staff/:id/score/current - Get current month score
+        if (httpMethod === 'GET' && path.match(/\/staff\/[^\/]+\/score\/current$/)) {
+            try {
+                const staff_id = path.split('/')[2];
+                const result = await getCurrentMonthScore(staff_id);
+
+                return {
+                    statusCode: 200,
+                    headers,
+                    body: JSON.stringify(result)
+                };
+            } catch (error) {
+                console.error('Error getting current score:', error);
+                return {
+                    statusCode: 400,
+                    headers,
+                    body: JSON.stringify({
+                        success: false,
+                        error: error.message
+                    })
+                };
+            }
+        }
+
+        // GET /staff/:id/score/history - Get score history
+        if (httpMethod === 'GET' && path.match(/\/staff\/[^\/]+\/score\/history$/)) {
+            try {
+                const staff_id = path.split('/')[2];
+                const limit = event.queryStringParameters?.limit || 12;
+                const result = await getStaffScoreHistory(staff_id, limit);
+
+                return {
+                    statusCode: 200,
+                    headers,
+                    body: JSON.stringify(result)
+                };
+            } catch (error) {
+                console.error('Error getting score history:', error);
+                return {
+                    statusCode: 400,
+                    headers,
+                    body: JSON.stringify({
+                        success: false,
+                        error: error.message
+                    })
+                };
+            }
+        }
+
+        // GET /staff/:id/score/:month_year - Get specific month score
+        if (httpMethod === 'GET' && path.match(/\/staff\/[^\/]+\/score\/\d{4}-\d{2}$/)) {
+            try {
+                const parts = path.split('/');
+                const staff_id = parts[2];
+                const month_year = parts[4];
+                const result = await getMonthScore(staff_id, month_year);
+
+                return {
+                    statusCode: 200,
+                    headers,
+                    body: JSON.stringify(result)
+                };
+            } catch (error) {
+                console.error('Error getting month score:', error);
+                return {
+                    statusCode: 400,
+                    headers,
+                    body: JSON.stringify({
+                        success: false,
+                        error: error.message
+                    })
+                };
+            }
+        }
+
+        // GET /staff/scores/leaderboard - Get monthly leaderboard
+        if (httpMethod === 'GET' && path.includes('/staff/scores/leaderboard')) {
+            try {
+                const month_year = event.queryStringParameters?.month_year;
+                const limit = event.queryStringParameters?.limit || 10;
+
+                // Hygiene monitors only see staff from their assigned franchises
+                let allowedStaffIds = null;
+                if (user && user.role === 'HYGIENE_MONITOR') {
+                    const monitorResult = await dynamodb.send(new GetCommand({
+                        TableName: HYGIENE_MONITORS_TABLE,
+                        Key: { id: user.userId }
+                    }));
+                    const franchiseIds = monitorResult.Item?.franchise_ids || [];
+                    if (franchiseIds.length === 0) {
+                        return {
+                            statusCode: 200,
+                            headers,
+                            body: JSON.stringify({ success: true, month_year, count: 0, data: [] })
+                        };
+                    }
+                    // Get staff IDs for those franchises
+                    const staffScan = await dynamodb.send(new ScanCommand({
+                        TableName: STAFF_TABLE,
+                        FilterExpression: '#role = :role',
+                        ExpressionAttributeNames: { '#role': 'role' },
+                        ExpressionAttributeValues: { ':role': 'FRANCHISE_STAFF' }
+                    }));
+                    const franchiseSet = new Set(franchiseIds);
+                    allowedStaffIds = (staffScan.Items || [])
+                        .filter(s => franchiseSet.has(s.parent_id))
+                        .map(s => s.id);
+                }
+
+                const result = await getMonthLeaderboard(month_year, limit, allowedStaffIds);
+
+                return {
+                    statusCode: 200,
+                    headers,
+                    body: JSON.stringify(result)
+                };
+            } catch (error) {
+                console.error('Error getting leaderboard:', error);
+                return {
+                    statusCode: 400,
+                    headers,
+                    body: JSON.stringify({
+                        success: false,
+                        error: error.message
+                    })
+                };
+            }
+        }
+
+        // ==================== END STAFF SCORING ROUTES ====================
 
         return {
             statusCode: 404,

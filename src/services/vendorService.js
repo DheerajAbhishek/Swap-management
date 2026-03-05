@@ -75,7 +75,14 @@ export const vendorService = {
    */
   async getVendorItemsForFranchise(vendorId) {
     const response = await api.get(`/vendors/${vendorId}/items`);
-    return Array.isArray(response.data) ? response.data : [];
+    // API returns vendor object with items array, or just items array
+    const data = response.data;
+    if (Array.isArray(data)) {
+      return data;
+    } else if (data && Array.isArray(data.items)) {
+      return data.items;
+    }
+    return [];
   },
 
   /**

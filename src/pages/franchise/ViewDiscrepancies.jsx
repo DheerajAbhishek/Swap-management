@@ -30,13 +30,27 @@ export default function ViewDiscrepancies() {
     fetchDiscrepancies();
 
     // Subscribe to discrepancy notifications
-    const unsubscribe = subscribe(['DISCREPANCY_NEW', 'DISCREPANCY_RESOLVED'], () => {
+    const unsubscribe = subscribe(['DISCREPANCY_NEW', 'DISCREPANCY_RESOLVED', 'DISCREPANCY_VENDOR_ACKNOWLEDGED', 'DISCREPANCY_VENDOR_REJECTED'], () => {
       console.log('🔄 Refreshing discrepancies due to notification');
       fetchDiscrepancies();
     });
 
     return unsubscribe;
   }, [subscribe]);
+
+  const handleDelete = async (discrepancyId) => {
+    if (!confirm('Are you sure you want to delete this discrepancy? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await discrepancyService.deleteDiscrepancy(discrepancyId);
+      alert('Discrepancy deleted successfully!');
+      fetchDiscrepancies(); // Refresh list
+    } catch (err) {
+      alert('Failed to delete discrepancy: ' + err.message);
+    }
+  };
 
   if (loading) {
     return <div style={{ textAlign: 'center', padding: 60, color: '#6b7280' }}>Loading discrepancies...</div>;
@@ -201,6 +215,43 @@ export default function ViewDiscrepancies() {
                     Resolved on {formatDateTime(d.resolved_at)}
                   </div>
                 </div>
+              )}
+
+              {/* Vendor Rejection */}
+              {d.vendor_rejected && (
+                <div style={{
+                  padding: 12,
+                  background: '#fee2e2',
+                  borderRadius: 8,
+                  marginTop: 16
+                }}>
+                  <div style={{ fontSize: 12, color: '#991b1b', fontWeight: 600, marginBottom: 4 }}>Vendor Rejected:</div>
+                  <div style={{ fontSize: 14, color: '#991b1b' }}>{d.rejection_reason}</div>
+                  <div style={{ fontSize: 11, color: '#b91c1c', marginTop: 8 }}>
+                    Rejected on {formatDateTime(d.vendor_rejected_at)}
+                  </div>
+                </div>
+              )}
+
+              {/* Delete Button - Only for pending (not vendor acknowledged) */}
+              {!d.vendor_acknowledged && !d.resolved && !d.vendor_rejected && (
+                <button
+                  onClick={() => handleDelete(d.id)}
+                  style={{
+                    marginTop: 16,
+                    padding: '10px 16px',
+                    background: 'white',
+                    color: '#ef4444',
+                    border: '2px solid #ef4444',
+                    borderRadius: 8,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    width: '100%'
+                  }}
+                >
+                  🗑️ Delete (Raised by Accident)
+                </button>
               )}
             </div>
           ))}

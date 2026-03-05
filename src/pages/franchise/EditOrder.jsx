@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import OrderForm from '../../components/Supply/OrderForm';
 import { franchiseService } from '../../services/franchiseService';
 import { orderService } from '../../services/orderService';
+import { vendorService } from '../../services/vendorService';
 import { useAuth } from '../../context/AuthContext';
 
 /**
@@ -14,6 +15,8 @@ export default function EditOrder() {
     const { user } = useAuth();
     const [items, setItems] = useState([]);
     const [order, setOrder] = useState(null);
+    const [allowPriceEdit, setAllowPriceEdit] = useState(false);
+    const [isPettyCash, setIsPettyCash] = useState(false);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [success, setSuccess] = useState(false);
@@ -32,26 +35,7 @@ export default function EditOrder() {
                     return;
                 }
 
-                // Get franchise-specific items with custom prices
-                const itemsData = await franchiseService.getFranchiseItems(franchiseId);
-
-                if (!itemsData || itemsData.length === 0) {
-                    setError('No items configured for this franchise. Please contact admin to add items.');
-                    return;
-                }
-
-                // Transform to format expected by OrderForm
-                const formattedItems = itemsData.map(item => ({
-                    id: item.id,
-                    name: item.name,
-                    category: item.category || 'General',
-                    defaultUom: item.unit || 'kg',
-                    standard_price: item.price // franchise custom price
-                }));
-
-                setItems(formattedItems);
-
-                // Get the existing order
+                // Get the existing order FIRST to know which vendor it belongs to
                 const orderData = await orderService.getOrder(id);
 
                 // Check if order can be modified
@@ -62,6 +46,43 @@ export default function EditOrder() {
                 }
 
                 setOrder(orderData);
+
+                // Fetch vendor details to check if price editing is allowed (for PETTY_CASH vendors)
+                try {
+                    const vendorDetails = await vendorService.getVendor(orderData.vendor_id);
+                    setAllowPriceEdit(vendorDetails.allow_price_edit || vendorDetails.vendor_type === 'PETTY_CASH' || false);
+                    setIsPettyCash(vendorDetails.vendor_type === 'PETTY_CASH');
+                } catch (err) {
+                    console.warn('Could not fetch vendor details:', err);
+                    setAllowPriceEdit(false);
+                }
+
+                // Get franchise-specific items with custom prices
+                const itemsData = await franchiseService.getFranchiseItems(franchiseId);
+
+                if (!itemsData || itemsData.length === 0) {
+                    setError('No items configured for this franchise. Please contact admin to add items.');
+                    return;
+                }
+
+                // Filter items to only show items from the order's vendor
+                const vendorItems = itemsData.filter(item => item.vendor_id === orderData.vendor_id);
+
+                if (vendorItems.length === 0) {
+                    setError(`No items found for vendor ${orderData.vendor_name || 'Unknown'}`);
+                    return;
+                }
+
+                // Transform to format expected by OrderForm
+                const formattedItems = vendorItems.map(item => ({
+                    id: item.id,
+                    name: item.name,
+                    category: item.category || 'General',
+                    defaultUom: item.unit || 'kg',
+                    standard_price: item.price // franchise custom price
+                }));
+
+                setItems(formattedItems);
             } catch (err) {
                 console.error('Failed to fetch data:', err);
                 setError(err.response?.data?.error || 'Failed to load order');
@@ -84,15 +105,20 @@ export default function EditOrder() {
             const apiOrderData = {
                 vendor_id: order.vendor_id, // Keep same vendor for now
                 items: orderData.items.map(item => {
-                    // Find item_id from items list
-                    const itemData = items.find(i => i.name === item.item_name);
+                    // Find item_id from items list (trim and flexible matching)
+                    const trimmedName = (item.item_name || '').trim().toLowerCase();
+                    const itemData = items.find(i => i.name.trim().toLowerCase() === trimmedName)
+                        || items.find(i => i.name.trim().toLowerCase().includes(trimmedName))
+                        || items.find(i => trimmedName.includes(i.name.trim().toLowerCase()));
+                    // Use franchise item price as fallback if unit_price is 0
+                    const price = item.unit_price || itemData?.standard_price || 0;
                     return {
                         item_id: itemData?.id || '',
-                        item_name: item.item_name,
+                        item_name: itemData?.name || item.item_name.trim(),
                         category: itemData?.category || '',
-                        uom: item.uom,
+                        uom: item.uom || itemData?.defaultUom || 'kg',
                         quantity: item.qty,  // OrderForm returns 'qty', not 'quantity'
-                        unit_price: item.unit_price
+                        unit_price: price
                     };
                 }),
                 notes: orderData.notes || ''
@@ -221,7 +247,30 @@ export default function EditOrder() {
                 <p style={{ color: '#6b7280', marginTop: 4 }}>
                     Editing order {order.order_number}
                 </p>
-                <p style={{ color: '#f59e0b', fontSize: 13, marginTop: 8, fontWeight: 500 }}>
+
+                {/* Vendor/Kitchen Info */}
+                <div style={{
+                    marginTop: 16,
+                    padding: 16,
+                    background: 'linear-gradient(135deg, #dbeafe, #bfdbfe)',
+                    borderRadius: 12,
+                    border: '1px solid #93c5fd'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 20 }}>🏪</span>
+                        <div>
+                            <div style={{ fontSize: 13, color: '#1e40af', fontWeight: 500 }}>Kitchen/Vendor</div>
+                            <div style={{ fontSize: 16, fontWeight: 700, color: '#1e3a8a' }}>
+                                {order.vendor_name || 'Unknown Kitchen'}
+                            </div>
+                        </div>
+                    </div>
+                    <div style={{ fontSize: 12, color: '#3b82f6', marginTop: 8 }}>
+                        ℹ️ Items shown below are only from this kitchen
+                    </div>
+                </div>
+
+                <p style={{ color: '#f59e0b', fontSize: 13, marginTop: 16, fontWeight: 500 }}>
                     You can only edit orders within 24 hours of creation and before they are accepted
                 </p>
             </div>
@@ -233,6 +282,8 @@ export default function EditOrder() {
                 error={error}
                 submitButtonText="Update Order"
                 initialData={initialOrderData}
+                allowPriceEdit={allowPriceEdit}
+                allowPastDeliveryDate={isPettyCash}
             />
 
             <button

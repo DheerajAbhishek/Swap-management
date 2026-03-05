@@ -3,6 +3,7 @@ import OrderTable from '../../components/Supply/OrderTable';
 import StatusBadge from '../../components/Supply/StatusBadge';
 import { formatCurrency, formatDateTime } from '../../utils/constants';
 import orderService from '../../services/orderService';
+import franchiseService from '../../services/franchiseService';
 import OrderComplaintModal from '../../components/Supply/OrderComplaintModal';
 import { useAuth } from '../../context/AuthContext';
 
@@ -15,28 +16,71 @@ export default function AllOrders() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filterStatus, setFilterStatus] = useState('');
+  const [selectedFranchise, setSelectedFranchise] = useState('');
+  const [selectedVendor, setSelectedVendor] = useState('');
+  const [createdStartDate, setCreatedStartDate] = useState('');
+  const [createdEndDate, setCreatedEndDate] = useState('');
+  const [deliveryStartDate, setDeliveryStartDate] = useState('');
+  const [deliveryEndDate, setDeliveryEndDate] = useState('');
+  const [franchises, setFranchises] = useState([]);
+  const [vendors, setVendors] = useState([]);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [complaintModal, setComplaintModal] = useState({ open: false, order: null });
 
   useEffect(() => {
-    const fetchOrders = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
-        const data = await orderService.getOrders();
-        setOrders(data);
+        const [ordersData, franchisesData] = await Promise.all([
+          orderService.getOrders(),
+          franchiseService.getFranchises()
+        ]);
+        setOrders(ordersData);
+        setFranchises(franchisesData);
+
+        // Extract unique vendors from orders
+        const uniqueVendors = [...new Set(ordersData.map(o => o.vendor_name).filter(Boolean))];
+        setVendors(uniqueVendors);
       } catch (err) {
         setError(err.message);
-        console.error('Failed to fetch orders:', err);
+        console.error('Failed to fetch data:', err);
       } finally {
         setLoading(false);
       }
     };
-    fetchOrders();
+    fetchData();
   }, []);
 
-  const filteredOrders = filterStatus
-    ? orders.filter(o => o.status === filterStatus)
-    : orders;
+  const filteredOrders = orders.filter(order => {
+    // Status filter
+    if (filterStatus && order.status !== filterStatus) return false;
+
+    // Franchise filter
+    if (selectedFranchise && order.franchise_id !== selectedFranchise) return false;
+
+    // Vendor filter
+    if (selectedVendor && order.vendor_name !== selectedVendor) return false;
+
+    // Created date filter
+    if (createdStartDate) {
+      const orderCreated = new Date(order.created_at).toISOString().split('T')[0];
+      if (orderCreated < createdStartDate) return false;
+    }
+    if (createdEndDate) {
+      const orderCreated = new Date(order.created_at).toISOString().split('T')[0];
+      if (orderCreated > createdEndDate) return false;
+    }
+
+    // Delivery date filter
+    if (deliveryStartDate && order.delivery_date) {
+      if (order.delivery_date < deliveryStartDate) return false;
+    }
+    if (deliveryEndDate && order.delivery_date) {
+      if (order.delivery_date > deliveryEndDate) return false;
+    }
+
+    return true;
+  });
 
   const handleViewOrder = (order) => {
     setSelectedOrder(order);
@@ -57,7 +101,7 @@ export default function AllOrders() {
         </p>
       </div>
 
-      {/* Filters */}
+      {/* Status Filters */}
       <div style={{
         background: 'white',
         borderRadius: 16,
@@ -82,6 +126,171 @@ export default function AllOrders() {
             {status} ({orders.filter(o => o.status === status).length})
           </button>
         ))}
+      </div>
+
+      {/* Additional Filters */}
+      <div style={{
+        background: 'white',
+        borderRadius: 16,
+        padding: 20,
+        marginBottom: 20
+      }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16 }}>
+          {/* Franchise Filter */}
+          <div>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+              Franchise
+            </label>
+            <select
+              value={selectedFranchise}
+              onChange={(e) => setSelectedFranchise(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                borderRadius: 8,
+                border: '1px solid #d1d5db',
+                fontSize: 14,
+                color: '#374151'
+              }}
+            >
+              <option value="">All Franchises</option>
+              {franchises.map(f => (
+                <option key={f.id} value={f.id}>{f.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Vendor Filter */}
+          <div>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+              Vendor
+            </label>
+            <select
+              value={selectedVendor}
+              onChange={(e) => setSelectedVendor(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                borderRadius: 8,
+                border: '1px solid #d1d5db',
+                fontSize: 14,
+                color: '#374151'
+              }}
+            >
+              <option value="">All Vendors</option>
+              {vendors.map(v => (
+                <option key={v} value={v}>{v}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Created Date Start */}
+          <div>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+              Created From
+            </label>
+            <input
+              type="date"
+              value={createdStartDate}
+              onChange={(e) => setCreatedStartDate(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                borderRadius: 8,
+                border: '1px solid #d1d5db',
+                fontSize: 14,
+                color: '#374151'
+              }}
+            />
+          </div>
+
+          {/* Created Date End */}
+          <div>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+              Created To
+            </label>
+            <input
+              type="date"
+              value={createdEndDate}
+              onChange={(e) => setCreatedEndDate(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                borderRadius: 8,
+                border: '1px solid #d1d5db',
+                fontSize: 14,
+                color: '#374151'
+              }}
+            />
+          </div>
+
+          {/* Delivery Date Start */}
+          <div>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+              Delivery From
+            </label>
+            <input
+              type="date"
+              value={deliveryStartDate}
+              onChange={(e) => setDeliveryStartDate(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                borderRadius: 8,
+                border: '1px solid #d1d5db',
+                fontSize: 14,
+                color: '#374151'
+              }}
+            />
+          </div>
+
+          {/* Delivery Date End */}
+          <div>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>
+              Delivery To
+            </label>
+            <input
+              type="date"
+              value={deliveryEndDate}
+              onChange={(e) => setDeliveryEndDate(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                borderRadius: 8,
+                border: '1px solid #d1d5db',
+                fontSize: 14,
+                color: '#374151'
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Clear Filters Button */}
+        {(selectedFranchise || selectedVendor || createdStartDate || createdEndDate || deliveryStartDate || deliveryEndDate) && (
+          <button
+            onClick={() => {
+              setSelectedFranchise('');
+              setSelectedVendor('');
+              setCreatedStartDate('');
+              setCreatedEndDate('');
+              setDeliveryStartDate('');
+              setDeliveryEndDate('');
+            }}
+            style={{
+              marginTop: 16,
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: '1px solid #ef4444',
+              background: '#fef2f2',
+              color: '#dc2626',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            Clear All Filters
+          </button>
+        )}
       </div>
 
       {/* Orders Table */}
@@ -121,6 +330,10 @@ export default function AllOrders() {
                 <div style={{ fontWeight: 600 }}>{selectedOrder.franchise_name}</div>
               </div>
               <div>
+                <div style={{ fontSize: 12, color: '#6b7280' }}>Vendor</div>
+                <div style={{ fontWeight: 600 }}>{selectedOrder.vendor_name || 'N/A'}</div>
+              </div>
+              <div>
                 <div style={{ fontSize: 12, color: '#6b7280' }}>Created</div>
                 <div style={{ fontWeight: 500 }}>{formatDateTime(selectedOrder.created_at)}</div>
               </div>
@@ -145,20 +358,37 @@ export default function AllOrders() {
                   <thead>
                     <tr style={{ background: '#f9fafb' }}>
                       <th style={thStyle}>Item</th>
-                      <th style={thStyle}>Qty</th>
+                      <th style={thStyle}>Ordered</th>
+                      {selectedOrder.status === 'RECEIVED' && <th style={thStyle}>Received</th>}
                       <th style={thStyle}>Price</th>
                       <th style={thStyle}>Total</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {selectedOrder.items.map((item) => (
-                      <tr key={item.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                        <td style={tdStyle}>{item.item_name}</td>
-                        <td style={tdStyle}>{item.ordered_qty} {item.uom}</td>
-                        <td style={tdStyle}>{formatCurrency(item.unit_price)}</td>
-                        <td style={tdStyle}>{formatCurrency(item.line_total)}</td>
-                      </tr>
-                    ))}
+                    {selectedOrder.items.map((item) => {
+                      const hasDiscrepancy = selectedOrder.status === 'RECEIVED' && item.received_qty !== undefined && item.received_qty !== item.ordered_qty;
+                      const displayQty = selectedOrder.status === 'RECEIVED' && item.received_qty !== undefined ? item.received_qty : item.ordered_qty;
+                      const isOverage = hasDiscrepancy && item.received_qty > item.ordered_qty;
+                      const isShortage = hasDiscrepancy && item.received_qty < item.ordered_qty;
+                      const totalColor = isOverage ? '#16a34a' : isShortage ? '#dc2626' : '#1f2937';
+                      const lineTotal = displayQty * item.unit_price;
+
+                      return (
+                        <tr key={item.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                          <td style={tdStyle}>{item.item_name}</td>
+                          <td style={tdStyle}>{item.ordered_qty} {item.uom}</td>
+                          {selectedOrder.status === 'RECEIVED' && (
+                            <td style={{ ...tdStyle, color: hasDiscrepancy ? '#f59e0b' : '#6b7280', fontWeight: hasDiscrepancy ? 600 : 400 }}>
+                              {item.received_qty !== undefined ? item.received_qty : item.ordered_qty} {item.uom}
+                            </td>
+                          )}
+                          <td style={tdStyle}>{formatCurrency(item.unit_price)}</td>
+                          <td style={{ ...tdStyle, color: totalColor, fontWeight: hasDiscrepancy ? 600 : 400 }}>
+                            {formatCurrency(lineTotal)}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -249,7 +479,16 @@ export default function AllOrders() {
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
               <div style={{ fontSize: 18, fontWeight: 700 }}>
-                Total: {formatCurrency(selectedOrder.total_amount)}
+                Total: {(() => {
+                  if (selectedOrder.status === 'RECEIVED' && selectedOrder.items && selectedOrder.items.some(item => item.received_qty !== undefined)) {
+                    const actualTotal = selectedOrder.items.reduce((sum, item) => {
+                      const qty = item.received_qty !== undefined ? item.received_qty : item.ordered_qty;
+                      return sum + (qty * item.unit_price);
+                    }, 0);
+                    return formatCurrency(actualTotal);
+                  }
+                  return formatCurrency(selectedOrder.total_amount);
+                })()}
               </div>
               <div style={{ display: 'flex', gap: 12 }}>
                 <button

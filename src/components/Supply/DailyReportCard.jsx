@@ -4,20 +4,23 @@ import { formatCurrency } from '../../utils/constants';
  * DailyReportCard - Shows daily financial summary with COGS calculation
  * 
  * Formulas:
- * - COGS% = (B - C - W) / S × 100
- *   where B=Bill, C=Closing, W=Wastage, S=Sales
+ * - COGS% = (O + B - C - W) / S × 100
+ *   where O=Opening, B=Bill, C=Closing, W=Wastage, S=Sales
+ *   (Opening = Previous day's closing)
  * - GST = 5% of Sales
  * - Royalty = 5% of (Sales - GST)
- * - Net Pay = Sales - GST - Royalty - Bill
+ * - Net Pay = Sales - GST - Royalty - Bill - Logistics
  */
-export default function DailyReportCard({ sales, bill, closing, wastage }) {
+export default function DailyReportCard({ sales, bill, opening, closing, wastage, logistics }) {
   const S = parseFloat(sales) || 0;
   const B = parseFloat(bill) || 0;
+  const O = parseFloat(opening) || 0;
   const C = parseFloat(closing) || 0;
   const W = parseFloat(wastage) || 0;
+  const L = parseFloat(logistics) || 0;
 
-  // COGS% = (B - C - W) / S × 100
-  const cogsPercent = S > 0 ? ((B - C - W) / S) * 100 : 0;
+  // COGS% = (O + B - C - W) / S × 100
+  const cogsPercent = S > 0 ? ((O + B - C - W) / S) * 100 : 0;
 
   // GST = 5% of Sales
   const gst = S * 0.05;
@@ -25,8 +28,8 @@ export default function DailyReportCard({ sales, bill, closing, wastage }) {
   // Royalty = 5% of (Sales - GST)
   const royalty = (S - gst) * 0.05;
 
-  // Net Pay = Sales - GST - Royalty - Bill
-  const netPay = S - gst - royalty - B;
+  // Net Pay = Sales - GST - Royalty - Bill - Logistics
+  const netPay = S - gst - royalty - B - L;
 
   return (
     <div style={{
@@ -42,14 +45,15 @@ export default function DailyReportCard({ sales, bill, closing, wastage }) {
       {/* Main Values Grid */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
+        gridTemplateColumns: 'repeat(5, 1fr)',
         gap: 12,
         marginBottom: 20
       }}>
-        <ValueBox label="Sales (S)" value={S} color="#22c55e" />
+        <ValueBox label="Opening (O)" value={O} color="#8b5cf6" />
         <ValueBox label="Bill (B)" value={B} color="#3b82f6" />
         <ValueBox label="Closing (C)" value={C} color="#a855f7" />
         <ValueBox label="Wastage (W)" value={W} color="#ef4444" />
+        <ValueBox label="Sales (S)" value={S} color="#22c55e" />
       </div>
 
       {/* COGS Calculation */}
@@ -62,10 +66,10 @@ export default function DailyReportCard({ sales, bill, closing, wastage }) {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ fontSize: 13, opacity: 0.8, marginBottom: 4 }}>
-              COGS% = (B - C - W) / S × 100
+              COGS% = (O + B - C - W) / S × 100
             </div>
             <div style={{ fontSize: 12, opacity: 0.6 }}>
-              ({formatCurrency(B)} - {formatCurrency(C)} - {formatCurrency(W)}) / {formatCurrency(S)} × 100
+              ({formatCurrency(O)} + {formatCurrency(B)} - {formatCurrency(C)} - {formatCurrency(W)}) / {formatCurrency(S)} × 100
             </div>
           </div>
           <div style={{
@@ -100,6 +104,11 @@ export default function DailyReportCard({ sales, bill, closing, wastage }) {
           value={B}
           formula="Purchase orders total"
         />
+        <BreakdownItem
+          label="Logistics"
+          value={L}
+          formula="Logistics cost"
+        />
       </div>
 
       {/* Net Pay */}
@@ -114,10 +123,10 @@ export default function DailyReportCard({ sales, bill, closing, wastage }) {
       }}>
         <div>
           <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
-            Net Pay = Sales - GST - Royalty - Bill
+            Net Pay = Sales - GST - Royalty - Bill - Logistics
           </div>
           <div style={{ fontSize: 12, opacity: 0.7 }}>
-            {formatCurrency(S)} - {formatCurrency(gst)} - {formatCurrency(royalty)} - {formatCurrency(B)}
+            {formatCurrency(S)} - {formatCurrency(gst)} - {formatCurrency(royalty)} - {formatCurrency(B)} - {formatCurrency(L)}
           </div>
         </div>
         <div style={{

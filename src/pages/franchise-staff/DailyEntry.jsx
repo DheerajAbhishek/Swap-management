@@ -6,6 +6,7 @@ import { dailyReportService } from '../../services/dailyReportService';
 import ClosingForm from '../../components/Supply/ClosingForm';
 import WastageForm from '../../components/Supply/WastageForm';
 import DailyReportCard from '../../components/Supply/DailyReportCard';
+import SyncSalesButton from '../../components/SyncSalesButton';
 import { formatCurrency } from '../../utils/constants';
 
 /**
@@ -25,11 +26,12 @@ export default function DailyEntry() {
   const [closingData, setClosingData] = useState({ items: [], total: 0 });
   const [wastageData, setWastageData] = useState({ items: [], total: 0 });
   const [billTotal, setBillTotal] = useState(0);
+  const [opening, setOpening] = useState(0); // Previous day's closing
+  const [logistics, setLogistics] = useState('');
   const [existingReport, setExistingReport] = useState(null);
 
   // UI states
   const [activeTab, setActiveTab] = useState('closing');
-  const [savingReport, setSavingReport] = useState(false);
   const [message, setMessage] = useState(null);
 
   // Load items
@@ -52,18 +54,45 @@ export default function DailyEntry() {
     const loadDateData = async () => {
       setLoadingReport(true);
       try {
+        // Fetch previous day's closing (which becomes today's opening)
+        const previousDate = new Date(selectedDate);
+        previousDate.setDate(previousDate.getDate() - 1);
+        const prevDateStr = previousDate.toISOString().split('T')[0];
+
+        const prevReport = await dailyReportService.getDailyReport(prevDateStr);
+        const openingValue = prevReport?.closing_total || 0;
+        setOpening(openingValue);
+
         // Load existing report for selected date
         const report = await dailyReportService.getDailyReport(selectedDate);
         if (report) {
           setExistingReport(report);
           setSales(report.sales?.toString() || '');
-          setClosingData({ items: report.closing_items || [], total: report.closing_total || 0 });
-          setWastageData({ items: report.wastage_items || [], total: report.wastage_total || 0 });
+          // Transform backend field names (item_name, unit_price) to frontend (item, price)
+          const transformedClosing = (report.closing_items || []).map(item => ({
+            item: item.item_name || item.item,
+            qty: item.qty,
+            uom: item.uom,
+            price: item.unit_price || item.price,
+            total: item.total
+          }));
+          const transformedWastage = (report.wastage_items || []).map(item => ({
+            item: item.item_name || item.item,
+            qty: item.qty,
+            uom: item.uom,
+            price: item.unit_price || item.price,
+            reason: item.reason,
+            total: item.total
+          }));
+          setClosingData({ items: transformedClosing, total: report.closing_total || 0 });
+          setWastageData({ items: transformedWastage, total: report.wastage_total || 0 });
+          setLogistics(report.logistics?.toString() || '');
           // Don't use stored bill_total - calculate from orders below
         } else {
           // Reset if no report exists
           setExistingReport(null);
           setSales('');
+          setLogistics('');
           setClosingData({ items: [], total: 0 });
           setWastageData({ items: [], total: 0 });
         }
@@ -72,8 +101,9 @@ export default function DailyEntry() {
         const orders = await orderService.getOrders();
         const receivedOnDate = orders.filter(order => {
           if (order.status !== 'RECEIVED' && order.status !== 'DELIVERED') return false;
-          const orderDate = order.received_at || order.created_at;
-          return orderDate && orderDate.startsWith(selectedDate);
+          // Filter by delivery_date instead of received_at or created_at
+          const deliveryDate = order.delivery_date;
+          return deliveryDate && deliveryDate.startsWith(selectedDate);
         });
         const total = receivedOnDate.reduce((sum, order) => sum + (order.total_amount || 0), 0);
         setBillTotal(total);
@@ -84,8 +114,9 @@ export default function DailyEntry() {
           const orders = await orderService.getOrders();
           const receivedOnDate = orders.filter(order => {
             if (order.status !== 'RECEIVED' && order.status !== 'DELIVERED') return false;
-            const orderDate = order.received_at || order.created_at;
-            return orderDate && orderDate.startsWith(selectedDate);
+            // Filter by delivery_date instead of received_at or created_at
+            const deliveryDate = order.delivery_date;
+            return deliveryDate && deliveryDate.startsWith(selectedDate);
           });
           const total = receivedOnDate.reduce((sum, order) => sum + (order.total_amount || 0), 0);
           setBillTotal(total);
@@ -100,53 +131,123 @@ export default function DailyEntry() {
   }, [selectedDate]);
 
   const handleClosingSubmit = async (data) => {
-    setClosingData(data);
-    setMessage({ type: 'success', text: 'Closing data updated. Click "Save Daily Report" to save.' });
-    setTimeout(() => setMessage(null), 3000);
+    try {
+      const reportData = {
+        date: selectedDate,
+        closing_items: data.items,
+        closing_total: data.total
+      };
+
+      if (existingReport) {
+        await dailyReportService.updateDailyReport(reportData);
+      } else {
+        await dailyReportService.saveDailyReport(reportData);
+      }
+
+      setClosingData(data);
+      setMessage({ type: 'success', text: 'Closing data saved successfully!' });
+      setTimeout(() => setMessage(null), 3000);
+
+      // Refresh report to get updated data
+      const report = await dailyReportService.getDailyReport(selectedDate);
+      if (report) setExistingReport(report);
+    } catch (err) {
+      console.error('Failed to save closing:', err);
+      setMessage({ type: 'error', text: 'Failed to save closing: ' + (err.message || 'Unknown error') });
+      setTimeout(() => setMessage(null), 5000);
+    }
   };
 
   const handleWastageSubmit = async (data) => {
-    setWastageData(data);
-    setMessage({ type: 'success', text: 'Wastage data updated. Click "Save Daily Report" to save.' });
-    setTimeout(() => setMessage(null), 3000);
+    try {
+      const reportData = {
+        date: selectedDate,
+        wastage_items: data.items,
+        wastage_total: data.total
+      };
+
+      if (existingReport) {
+        await dailyReportService.updateDailyReport(reportData);
+      } else {
+        await dailyReportService.saveDailyReport(reportData);
+      }
+
+      setWastageData(data);
+      setMessage({ type: 'success', text: 'Wastage data saved successfully!' });
+      setTimeout(() => setMessage(null), 3000);
+
+      // Refresh report to get updated data
+      const report = await dailyReportService.getDailyReport(selectedDate);
+      if (report) setExistingReport(report);
+    } catch (err) {
+      console.error('Failed to save wastage:', err);
+      setMessage({ type: 'error', text: 'Failed to save wastage: ' + (err.message || 'Unknown error') });
+      setTimeout(() => setMessage(null), 5000);
+    }
   };
 
-  // Save entire daily report to backend
-  const handleSaveReport = async () => {
+  // Handle synced sales data from Rista API
+  const handleSalesSync = (syncedData) => {
+    if (syncedData && syncedData.grossSale) {
+      setSales(syncedData.grossSale.toString());
+      setMessage({ type: 'success', text: `Sales synced: ₹${syncedData.grossSale.toFixed(2)} from Rista API` });
+      setTimeout(() => setMessage(null), 5000);
+    }
+  };
+
+  // Save logistics data
+  const handleLogisticsSave = async () => {
+    try {
+      const reportData = {
+        date: selectedDate,
+        logistics: parseFloat(logistics) || 0
+      };
+      if (existingReport) {
+        await dailyReportService.updateDailyReport(reportData);
+      } else {
+        await dailyReportService.saveDailyReport(reportData);
+      }
+      setMessage({ type: 'success', text: 'Logistics saved successfully!' });
+      setTimeout(() => setMessage(null), 3000);
+      const report = await dailyReportService.getDailyReport(selectedDate);
+      if (report) setExistingReport(report);
+    } catch (err) {
+      console.error('Failed to save logistics:', err);
+      setMessage({ type: 'error', text: 'Failed to save logistics: ' + (err.message || 'Unknown error') });
+      setTimeout(() => setMessage(null), 5000);
+    }
+  };
+
+  // Save sales data
+  const handleSalesSave = async () => {
     if (!sales || parseFloat(sales) <= 0) {
       setMessage({ type: 'error', text: 'Please enter sales amount' });
       setTimeout(() => setMessage(null), 3000);
       return;
     }
 
-    setSavingReport(true);
     try {
       const reportData = {
         date: selectedDate,
-        sales: parseFloat(sales) || 0,
-        closing_items: closingData.items,
-        closing_total: closingData.total,
-        wastage_items: wastageData.items,
-        wastage_total: wastageData.total,
-        bill_total: billTotal
+        sales: parseFloat(sales) || 0
       };
 
-      let savedReport;
       if (existingReport) {
-        savedReport = await dailyReportService.updateDailyReport(reportData);
+        await dailyReportService.updateDailyReport(reportData);
       } else {
-        savedReport = await dailyReportService.saveDailyReport(reportData);
+        await dailyReportService.saveDailyReport(reportData);
       }
 
-      setExistingReport(savedReport);
-      setMessage({ type: 'success', text: 'Daily report saved successfully!' });
+      setMessage({ type: 'success', text: 'Sales saved successfully!' });
       setTimeout(() => setMessage(null), 3000);
+
+      // Refresh report to get updated data
+      const report = await dailyReportService.getDailyReport(selectedDate);
+      if (report) setExistingReport(report);
     } catch (err) {
-      console.error('Failed to save report:', err);
-      setMessage({ type: 'error', text: 'Failed to save report: ' + (err.message || 'Unknown error') });
+      console.error('Failed to save sales:', err);
+      setMessage({ type: 'error', text: 'Failed to save sales: ' + (err.message || 'Unknown error') });
       setTimeout(() => setMessage(null), 5000);
-    } finally {
-      setSavingReport(false);
     }
   };
 
@@ -187,7 +288,7 @@ export default function DailyEntry() {
         marginBottom: 24,
         boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
       }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 20 }}>
           <div>
             <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 8 }}>
               Date
@@ -241,6 +342,31 @@ export default function DailyEntry() {
                 background: '#f0fdf4'
               }}
             />
+            <div style={{ marginTop: 8 }}>
+              <SyncSalesButton
+                franchiseId={user?.franchise_id}
+                onDataSynced={handleSalesSync}
+              />
+              <button
+                onClick={handleSalesSave}
+                type="button"
+                style={{
+                  marginTop: 8,
+                  width: '100%',
+                  padding: '10px 16px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: '#10b981',
+                  color: 'white',
+                  fontWeight: 600,
+                  fontSize: 14,
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 6px rgba(16, 185, 129, 0.3)'
+                }}
+              >
+                Save Sales
+              </button>
+            </div>
           </div>
 
           <div>
@@ -258,6 +384,55 @@ export default function DailyEntry() {
             }}>
               {formatCurrency(billTotal)}
             </div>
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 8 }}>
+              Logistics (₹)
+            </label>
+            <input
+              type="number"
+              value={logistics}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value.includes('e') || value.includes('E')) return;
+                setLogistics(value);
+              }}
+              onKeyDown={(e) => {
+                if (['e', 'E', '+', '-'].includes(e.key)) e.preventDefault();
+              }}
+              placeholder="Enter logistics cost"
+              min="0"
+              step="0.01"
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                borderRadius: 10,
+                border: '2px solid #f59e0b',
+                fontSize: 16,
+                fontWeight: 600,
+                boxSizing: 'border-box',
+                background: '#fffbeb'
+              }}
+            />
+            <button
+              onClick={handleLogisticsSave}
+              type="button"
+              style={{
+                marginTop: 8,
+                width: '100%',
+                padding: '10px 16px',
+                borderRadius: 8,
+                border: 'none',
+                background: '#f59e0b',
+                color: 'white',
+                fontWeight: 600,
+                fontSize: 14,
+                cursor: 'pointer'
+              }}
+            >
+              Save Logistics
+            </button>
           </div>
         </div>
       </div>
@@ -338,49 +513,11 @@ export default function DailyEntry() {
       <DailyReportCard
         sales={sales}
         bill={billTotal}
+        opening={opening}
         closing={closingData.total}
         wastage={wastageData.total}
+        logistics={logistics}
       />
-
-      {/* Save Report Button */}
-      <div style={{
-        background: 'white',
-        borderRadius: 16,
-        padding: 24,
-        marginTop: 24,
-        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
-      }}>
-        <div>
-          {existingReport && (
-            <span style={{ color: '#6b7280', fontSize: 13 }}>
-              Last saved: {new Date(existingReport.updated_at || existingReport.created_at).toLocaleString()}
-            </span>
-          )}
-          {loadingReport && (
-            <span style={{ color: '#6b7280', fontSize: 13 }}>Loading existing data...</span>
-          )}
-        </div>
-        <button
-          onClick={handleSaveReport}
-          disabled={savingReport || loadingReport}
-          style={{
-            padding: '14px 32px',
-            borderRadius: 10,
-            border: 'none',
-            background: savingReport ? '#9ca3af' : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-            color: 'white',
-            fontWeight: 700,
-            fontSize: 16,
-            cursor: savingReport ? 'not-allowed' : 'pointer',
-            boxShadow: '0 4px 14px rgba(16, 185, 129, 0.4)'
-          }}
-        >
-          {savingReport ? 'Saving...' : existingReport ? 'Update Daily Report' : 'Save Daily Report'}
-        </button>
-      </div>
     </div>
   );
 }

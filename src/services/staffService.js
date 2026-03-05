@@ -93,6 +93,78 @@ export const staffService = {
     deleteManager: async (id) => {
         const response = await api.delete(`/staff/managers/${id}`);
         return response.data;
+    },
+
+    /**
+     * Set staff score directly (admin only)
+     * @param {string} id - Staff ID
+     * @param {number} score - New score (0-100)
+     * @param {string} reason - Reason for change
+     */
+    setStaffScore: async (id, score, reason = '') => {
+        const response = await api.put(`/staff/${id}/set-score`, { score, reason });
+        return response.data;
+    },
+
+    /**
+     * Get staff attendance statistics
+     * @param {string} id - Staff ID
+     */
+    getStaffAttendanceStats: async (id) => {
+        const response = await api.get(`/staff/${id}/attendance-stats`);
+        return response.data;
+    },
+
+    // ==================== STAFF SCORING METHODS ====================
+
+    /**
+     * Create or update staff performance score
+     * @param {Object} scoreData - { staff_id, staff_name, attendance_score, hygiene_score, discipline_score, notes }
+     */
+    updateStaffScore: async (scoreData) => {
+        const response = await api.post('/staff/score', scoreData);
+        return response.data;
+    },
+
+    /**
+     * Get staff score for current month
+     * @param {string} staffId - Staff ID
+     */
+    getCurrentMonthScore: async (staffId) => {
+        const response = await api.get(`/staff/${staffId}/score/current`);
+        return response.data;
+    },
+
+    /**
+     * Get staff score for a specific month
+     * @param {string} staffId - Staff ID
+     * @param {string} monthYear - Month in YYYY-MM format (e.g., "2026-03")
+     */
+    getMonthScore: async (staffId, monthYear) => {
+        const response = await api.get(`/staff/${staffId}/score/${monthYear}`);
+        return response.data;
+    },
+
+    /**
+     * Get staff score history
+     * @param {string} staffId - Staff ID
+     * @param {number} limit - Number of months to retrieve (default: 12)
+     */
+    getStaffScoreHistory: async (staffId, limit = 12) => {
+        const response = await api.get(`/staff/${staffId}/score/history`, { params: { limit } });
+        return response.data;
+    },
+
+    /**
+     * Get monthly leaderboard
+     * @param {string} monthYear - Optional month in YYYY-MM format (default: current month)
+     * @param {number} limit - Number of top performers (default: 10)
+     */
+    getLeaderboard: async (monthYear = '', limit = 10) => {
+        const response = await api.get('/staff/scores/leaderboard', {
+            params: { month_year: monthYear, limit }
+        });
+        return response.data;
     }
 };
 

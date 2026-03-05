@@ -64,6 +64,15 @@ export function isKitchenStaff(user) {
 }
 
 /**
+ * Check if user is Hygiene Monitor
+ * @param {Object} user
+ * @returns {boolean}
+ */
+export function isHygieneMonitor(user) {
+  return hasRole(user, USER_ROLES.HYGIENE_MONITOR);
+}
+
+/**
  * Get dashboard path for user role
  * @param {Object} user
  * @returns {string}
@@ -84,6 +93,8 @@ export function getDashboardPath(user) {
       return '/franchise-staff';
     case USER_ROLES.KITCHEN_STAFF:
       return '/kitchen-staff';
+    case USER_ROLES.HYGIENE_MONITOR:
+      return '/hygiene-monitor';
     default:
       return '/login';
   }
@@ -101,7 +112,7 @@ export function getNavItems(user) {
     case USER_ROLES.ADMIN:
       return [
         { path: '/admin', label: 'Dashboard', icon: 'dashboard' },
-        { path: '/admin/items', label: 'Manage Items', icon: 'inventory' },
+        // { path: '/admin/items', label: 'Manage Items', icon: 'inventory' },
         { path: '/admin/orders', label: 'All Orders', icon: 'orders' },
         { path: '/admin/vendors', label: 'Vendor Management', icon: 'vendors' },
         { path: '/admin/franchises', label: 'Franchise Management', icon: 'store' },
@@ -109,7 +120,9 @@ export function getNavItems(user) {
         { path: '/admin/staff', label: 'All Staff', icon: 'users' },
         { path: '/admin/attendance', label: 'Staff Attendance', icon: 'calendar' },
         { path: '/admin/auditors', label: 'Audit Management', icon: 'clipboard' },
-        { path: '/admin/audits', label: 'View Audits', icon: 'audit' },
+        { path: '/admin/hygiene-monitors', label: 'Hygiene Monitors', icon: 'users' },
+        { path: '/admin/audits', label: 'View Franchise Audits', icon: 'audit' },
+        { path: '/admin/misa-audits', label: 'View Misa Audits', icon: 'cooking' },
         { path: '/admin/daily-reports', label: 'Daily Reports', icon: 'report' },
         { path: '/admin/discrepancies', label: 'Discrepancies', icon: 'alert' },
         { path: '/admin/complaints', label: 'Complaints', icon: 'message' }
@@ -122,6 +135,7 @@ export function getNavItems(user) {
         { path: '/kitchen/staff', label: 'Manage Staff', icon: 'users' },
         { path: '/kitchen/discrepancies', label: 'View Discrepancies', icon: 'alert' },
         { path: '/kitchen/complaints', label: 'Complaints', icon: 'message' },
+        { path: '/kitchen/misa-feedback', label: 'Audit Feedback', icon: 'audit' },
         { path: '/kitchen/profile', label: 'Profile', icon: 'settings' }
       ];
     case USER_ROLES.FRANCHISE:
@@ -139,8 +153,10 @@ export function getNavItems(user) {
     case USER_ROLES.AUDITOR:
       return [
         { path: '/auditor', label: 'Dashboard', icon: 'dashboard' },
-        { path: '/auditor/conduct-audit', label: 'Conduct Audit', icon: 'clipboard' },
-        { path: '/auditor/history', label: 'Audit History', icon: 'history' }
+        { path: '/auditor/conduct-audit', label: 'Franchise Audit', icon: 'clipboard' },
+        { path: '/auditor/history', label: 'Franchise Audit History', icon: 'history' },
+        { path: '/auditor/misa-audit', label: 'Misa Audit', icon: 'cooking' },
+        { path: '/auditor/misa-history', label: 'Misa Audit History', icon: 'list' }
       ];
     case USER_ROLES.FRANCHISE_STAFF:
       return [
@@ -157,7 +173,14 @@ export function getNavItems(user) {
         { path: '/kitchen-staff', label: 'Dashboard', icon: 'dashboard' },
         { path: '/kitchen-staff/orders', label: 'Incoming Orders', icon: 'orders' },
         { path: '/kitchen-staff/discrepancies', label: 'Discrepancies', icon: 'alert' },
-        { path: '/kitchen-staff/complaints', label: 'Complaints', icon: 'message' }
+        { path: '/kitchen-staff/complaints', label: 'Complaints', icon: 'message' },
+        { path: '/kitchen-staff/misa-feedback', label: 'Audit Feedback', icon: 'audit' }
+      ];
+    case USER_ROLES.HYGIENE_MONITOR:
+      return [
+        { path: '/hygiene-monitor', label: 'Dashboard', icon: 'dashboard' },
+        { path: '/hygiene-monitor/attendance', label: 'Staff Attendance', icon: 'calendar' },
+        { path: '/hygiene-monitor/audits', label: 'Franchise Audits', icon: 'clipboard' }
       ];
     default:
       return [];

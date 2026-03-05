@@ -1,0 +1,11 @@
+﻿{
+  "requestContext": {
+    "http": {
+      "method": "GET"
+    }
+  },
+  "rawPath": "/staff/staff-mltofswrdl7x504t7/attendance-stats",
+  "headers": {
+    "Authorization": "Bearer eyJ1c2VySWQiOiJhZG1pbiIsInJvbGUiOiJBRE1JTiIsIm5hbWUiOiJBZG1pbiIsImV4cCI6OTk5OTk5OTk5OTk5OX0="
+  }
+}

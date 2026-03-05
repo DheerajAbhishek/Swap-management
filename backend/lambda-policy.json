@@ -21,6 +21,13 @@
         {
             "Effect": "Allow",
             "Action": [
+                "s3:ListBucket"
+            ],
+            "Resource": "arn:aws:s3:::swap-management-photos"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
                 "logs:*"
             ],
             "Resource": "*"

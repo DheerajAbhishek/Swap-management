@@ -57,8 +57,24 @@ export default function DailyEntry() {
         if (report) {
           setExistingReport(report);
           setSales(report.sales?.toString() || '');
-          setClosingData({ items: report.closing_items || [], total: report.closing_total || 0 });
-          setWastageData({ items: report.wastage_items || [], total: report.wastage_total || 0 });
+          // Transform backend field names (item_name, unit_price) to frontend (item, price)
+          const transformedClosing = (report.closing_items || []).map(item => ({
+            item: item.item_name || item.item,
+            qty: item.qty,
+            uom: item.uom,
+            price: item.unit_price || item.price,
+            total: item.total
+          }));
+          const transformedWastage = (report.wastage_items || []).map(item => ({
+            item: item.item_name || item.item,
+            qty: item.qty,
+            uom: item.uom,
+            price: item.unit_price || item.price,
+            reason: item.reason,
+            total: item.total
+          }));
+          setClosingData({ items: transformedClosing, total: report.closing_total || 0 });
+          setWastageData({ items: transformedWastage, total: report.wastage_total || 0 });
           setBillTotal(report.bill_total || 0);
         } else {
           // Reset if no report exists

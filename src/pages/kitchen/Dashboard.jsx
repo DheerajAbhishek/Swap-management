@@ -81,10 +81,10 @@ export default function KitchenDashboard() {
 
         setOrders(ordersData);
 
-        // Filter franchises assigned to this kitchen (vendor_1_id or vendor_2_id matches)
+        // Filter franchises assigned to this kitchen (vendor_1_id, vendor_2_id, or vendor_3_id matches)
         const vendorId = user?.vendor_id || user?.userId || user?.id;
-        const myFranchises = franchisesData.filter(f => 
-          f.vendor_1_id === vendorId || f.vendor_2_id === vendorId
+        const myFranchises = franchisesData.filter(f =>
+          f.vendor_1_id === vendorId || f.vendor_2_id === vendorId || f.vendor_3_id === vendorId
         );
         setAssignedFranchises(myFranchises);
 
@@ -122,11 +122,16 @@ export default function KitchenDashboard() {
       if (dateRange.startDate && dateRange.endDate) {
         setLoadingItems(true);
         try {
-          const items = await orderService.getReceivedItems({
+          // Build params - only include franchiseId if not 'all'
+          const params = {
             startDate: dateRange.startDate,
-            endDate: dateRange.endDate,
-            franchiseId: selectedFranchise
-          });
+            endDate: dateRange.endDate
+          };
+          if (selectedFranchise !== 'all') {
+            params.franchiseId = selectedFranchise;
+          }
+
+          const items = await orderService.getReceivedItems(params);
           setReceivedItems(items);
         } catch (err) {
           console.error('Failed to fetch received items:', err);

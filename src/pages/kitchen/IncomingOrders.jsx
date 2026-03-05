@@ -20,7 +20,6 @@ export default function IncomingOrders() {
   const [filterStatus, setFilterStatus] = useState('PLACED');
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [actionLoading, setActionLoading] = useState(null);
-  const [complaintModal, setComplaintModal] = useState({ open: false, order: null });
   const [dispatchModal, setDispatchModal] = useState({ open: false, order: null });
 
   const fetchOrders = async () => {
@@ -170,9 +169,20 @@ export default function IncomingOrders() {
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 12, color: '#6b7280' }}>Total Cost</div>
+                  <div style={{ fontSize: 12, color: '#6b7280' }}>
+                    {order.status === 'RECEIVED' ? 'Total Cost (Delivered)' : 'Total Cost'}
+                  </div>
                   <div style={{ fontSize: 20, fontWeight: 700, color: '#10b981' }}>
-                    {formatCurrency(order.total_vendor_cost || order.total_amount)}
+                    {(() => {
+                      if (order.status === 'RECEIVED' && order.items.some(item => item.received_qty !== undefined)) {
+                        const actualTotal = order.items.reduce((sum, item) => {
+                          const qty = item.received_qty !== undefined ? item.received_qty : item.ordered_qty;
+                          return sum + (qty * (item.vendor_price || item.unit_price));
+                        }, 0);
+                        return formatCurrency(actualTotal);
+                      }
+                      return formatCurrency(order.total_vendor_cost || order.total_amount);
+                    })()}
                   </div>
                 </div>
               </div>
@@ -187,19 +197,29 @@ export default function IncomingOrders() {
                 <div style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 8 }}>
                   Items ({order.items.length})
                 </div>
-                {order.items.slice(0, 3).map((item, idx) => (
-                  <div key={idx} style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    fontSize: 14,
-                    padding: '4px 0'
-                  }}>
-                    <span>{item.item_name}</span>
-                    <span style={{ color: '#6b7280' }}>
-                      {item.ordered_qty} {item.uom} @ {formatCurrency(item.vendor_price || item.unit_price)}
-                    </span>
-                  </div>
-                ))}
+                {order.items.slice(0, 3).map((item, idx) => {
+                  const displayQty = (order.status === 'RECEIVED' && item.received_qty !== undefined)
+                    ? item.received_qty
+                    : item.ordered_qty;
+                  const hasDiscrepancy = order.status === 'RECEIVED' && item.received_qty !== undefined && item.received_qty !== item.ordered_qty;
+                  const isOverage = hasDiscrepancy && item.received_qty > item.ordered_qty;
+                  const isShortage = hasDiscrepancy && item.received_qty < item.ordered_qty;
+                  const qtyColor = isOverage ? '#16a34a' : isShortage ? '#dc2626' : '#6b7280';
+
+                  return (
+                    <div key={idx} style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      fontSize: 14,
+                      padding: '4px 0'
+                    }}>
+                      <span>{item.item_name}</span>
+                      <span style={{ color: qtyColor, fontWeight: hasDiscrepancy ? 600 : 400 }}>
+                        {displayQty} {item.uom} @ {formatCurrency(item.vendor_price || item.unit_price)}
+                      </span>
+                    </div>
+                  );
+                })}
                 {order.items.length > 3 && (
                   <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
                     +{order.items.length - 3} more items
@@ -335,24 +355,38 @@ export default function IncomingOrders() {
               <thead>
                 <tr style={{ background: '#f9fafb' }}>
                   <th style={thStyle}>Item</th>
-                  <th style={thStyle}>Qty</th>
+                  <th style={thStyle}>Requested</th>
+                  {selectedOrder.status === 'RECEIVED' && <th style={thStyle}>Delivered</th>}
                   <th style={thStyle}>Unit Cost</th>
                   <th style={thStyle}>Total</th>
                 </tr>
               </thead>
               <tbody>
-                {selectedOrder.items.map((item) => (
-                  <tr key={item.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                    <td style={tdStyle}>{item.item_name}</td>
-                    <td style={tdStyle}>{item.ordered_qty} {item.uom}</td>
-                    <td style={tdStyle}>
-                      {formatCurrency(item.vendor_price || item.unit_price)}
-                    </td>
-                    <td style={tdStyle}>
-                      {formatCurrency(item.ordered_qty * (item.vendor_price || item.unit_price))}
-                    </td>
-                  </tr>
-                ))}
+                {selectedOrder.items.map((item) => {
+                  const hasDiscrepancy = selectedOrder.status === 'RECEIVED' && item.received_qty !== undefined && item.received_qty !== item.ordered_qty;
+                  const displayQty = selectedOrder.status === 'RECEIVED' && item.received_qty !== undefined ? item.received_qty : item.ordered_qty;
+                  const isOverage = hasDiscrepancy && item.received_qty > item.ordered_qty;
+                  const isShortage = hasDiscrepancy && item.received_qty < item.ordered_qty;
+                  const totalColor = isOverage ? '#16a34a' : isShortage ? '#dc2626' : '#1f2937';
+
+                  return (
+                    <tr key={item.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                      <td style={tdStyle}>{item.item_name}</td>
+                      <td style={tdStyle}>{item.ordered_qty} {item.uom}</td>
+                      {selectedOrder.status === 'RECEIVED' && (
+                        <td style={{ ...tdStyle, color: hasDiscrepancy ? '#f59e0b' : '#6b7280', fontWeight: hasDiscrepancy ? 600 : 400 }}>
+                          {item.received_qty !== undefined ? item.received_qty : item.ordered_qty} {item.uom}
+                        </td>
+                      )}
+                      <td style={tdStyle}>
+                        {formatCurrency(item.vendor_price || item.unit_price)}
+                      </td>
+                      <td style={{ ...tdStyle, color: totalColor, fontWeight: hasDiscrepancy ? 600 : 400 }}>
+                        {formatCurrency(displayQty * (item.vendor_price || item.unit_price))}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
 
@@ -394,37 +428,23 @@ export default function IncomingOrders() {
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
               <div>
-                <div style={{ fontSize: 12, color: '#6b7280' }}>Total Cost</div>
+                <div style={{ fontSize: 12, color: '#6b7280' }}>
+                  {selectedOrder.status === 'RECEIVED' ? 'Total Cost (Actual Delivered)' : 'Total Cost'}
+                </div>
                 <div style={{ fontSize: 20, fontWeight: 700, color: '#10b981' }}>
-                  {formatCurrency(selectedOrder.total_vendor_cost || selectedOrder.total_amount)}
+                  {(() => {
+                    if (selectedOrder.status === 'RECEIVED' && selectedOrder.items.some(item => item.received_qty !== undefined)) {
+                      const actualTotal = selectedOrder.items.reduce((sum, item) => {
+                        const qty = item.received_qty !== undefined ? item.received_qty : item.ordered_qty;
+                        return sum + (qty * (item.vendor_price || item.unit_price));
+                      }, 0);
+                      return formatCurrency(actualTotal);
+                    }
+                    return formatCurrency(selectedOrder.total_vendor_cost || selectedOrder.total_amount);
+                  })()}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                <button
-                  onClick={() => {
-                    setComplaintModal({ open: true, order: selectedOrder });
-                  }}
-                  style={{
-                    padding: '10px 16px',
-                    borderRadius: 8,
-                    border: '1px solid #fecaca',
-                    background: '#fef2f2',
-                    color: '#991b1b',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6
-                  }}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                    <line x1="12" y1="9" x2="12" y2="13" />
-                    <line x1="12" y1="17" x2="12.01" y2="17" />
-                  </svg>
-                  Raise Complaint
-                </button>
                 <button onClick={() => setSelectedOrder(null)} style={cancelBtnStyle}>Close</button>
                 {selectedOrder.status === 'PLACED' && (
                   <button onClick={() => handleAccept(selectedOrder.id)} style={acceptBtnStyle}>
@@ -441,18 +461,6 @@ export default function IncomingOrders() {
           </div>
         </div>
       )}
-
-      {/* Complaint Modal */}
-      <OrderComplaintModal
-        isOpen={complaintModal.open}
-        onClose={() => setComplaintModal({ open: false, order: null })}
-        order={complaintModal.order}
-        user={user}
-        onSuccess={() => {
-          setSelectedOrder(null);
-          alert('Complaint submitted successfully!');
-        }}
-      />
 
       {/* Dispatch Modal */}
       <DispatchModal

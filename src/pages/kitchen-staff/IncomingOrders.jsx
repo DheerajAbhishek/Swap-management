@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { orderService } from '../../services/orderService';
 import ToastNotification from '../../components/ToastNotification';
-import OrderComplaintModal from '../../components/Supply/OrderComplaintModal';
 import DispatchModal from '../../components/Supply/DispatchModal';
 import { useNotificationEvents } from '../../context/NotificationContext';
 
@@ -21,7 +20,6 @@ export default function KitchenStaffIncomingOrders() {
   const [expandedOrder, setExpandedOrder] = useState(null);
   const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
   const [actionLoading, setActionLoading] = useState(null);
-  const [complaintModal, setComplaintModal] = useState({ open: false, order: null });
   const [dispatchModal, setDispatchModal] = useState({ open: false, order: null });
 
   useEffect(() => {
@@ -279,18 +277,35 @@ export default function KitchenStaffIncomingOrders() {
                     <thead>
                       <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                         <th style={{ textAlign: 'left', padding: '8px 0', fontSize: 12, color: '#6b7280' }}>Item</th>
-                        <th style={{ textAlign: 'center', padding: '8px 0', fontSize: 12, color: '#6b7280' }}>Quantity</th>
+                        <th style={{ textAlign: 'center', padding: '8px 0', fontSize: 12, color: '#6b7280' }}>Requested</th>
+                        {order.status === 'RECEIVED' && (
+                          <th style={{ textAlign: 'center', padding: '8px 0', fontSize: 12, color: '#6b7280' }}>Delivered</th>
+                        )}
                         <th style={{ textAlign: 'center', padding: '8px 0', fontSize: 12, color: '#6b7280' }}>Unit</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {order.items?.map((item, idx) => (
-                        <tr key={idx} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                          <td style={{ padding: '12px 0', fontWeight: 500 }}>{item.item_name}</td>
-                          <td style={{ textAlign: 'center', padding: '12px 0', fontWeight: 600 }}>{item.ordered_qty}</td>
-                          <td style={{ textAlign: 'center', padding: '12px 0', color: '#6b7280' }}>{item.uom}</td>
-                        </tr>
-                      ))}
+                      {order.items?.map((item, idx) => {
+                        const hasDiscrepancy = order.status === 'RECEIVED' && item.received_qty !== undefined && item.received_qty !== item.ordered_qty;
+
+                        return (
+                          <tr key={idx} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                            <td style={{ padding: '12px 0', fontWeight: 500 }}>{item.item_name}</td>
+                            <td style={{ textAlign: 'center', padding: '12px 0', fontWeight: 600 }}>{item.ordered_qty}</td>
+                            {order.status === 'RECEIVED' && (
+                              <td style={{
+                                textAlign: 'center',
+                                padding: '12px 0',
+                                fontWeight: hasDiscrepancy ? 600 : 400,
+                                color: hasDiscrepancy ? '#f59e0b' : '#6b7280'
+                              }}>
+                                {item.received_qty !== undefined ? item.received_qty : item.ordered_qty}
+                              </td>
+                            )}
+                            <td style={{ textAlign: 'center', padding: '12px 0', color: '#6b7280' }}>{item.uom}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
 
@@ -332,53 +347,12 @@ export default function KitchenStaffIncomingOrders() {
                       )}
                     </div>
                   </div>
-
-                  {/* Raise Complaint Button */}
-                  <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setComplaintModal({ open: true, order });
-                      }}
-                      style={{
-                        padding: '12px 20px',
-                        background: '#fef2f2',
-                        color: '#991b1b',
-                        border: '1px solid #fecaca',
-                        borderRadius: 10,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 8,
-                        fontSize: 14
-                      }}
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                        <line x1="12" y1="9" x2="12" y2="13" />
-                        <line x1="12" y1="17" x2="12.01" y2="17" />
-                      </svg>
-                      Raise Complaint
-                    </button>
-                  </div>
                 </div>
               )}
             </div>
           ))}
         </div>
       )}
-
-      {/* Complaint Modal */}
-      <OrderComplaintModal
-        isOpen={complaintModal.open}
-        onClose={() => setComplaintModal({ open: false, order: null })}
-        order={complaintModal.order}
-        user={user}
-        onSuccess={() => {
-          setToast({ show: true, message: 'Complaint submitted successfully!', type: 'success' });
-        }}
-      />
 
       {/* Dispatch Modal */}
       <DispatchModal

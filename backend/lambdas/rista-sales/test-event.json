@@ -1,0 +1,10 @@
+{
+  "httpMethod": "GET",
+  "queryStringParameters": {
+    "branchId": "MK",
+    "startDate": "2026-02-23",
+    "endDate": "2026-02-23",
+    "channel": "all",
+    "groupBy": "total"
+  }
+}

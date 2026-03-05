@@ -79,10 +79,36 @@ export default function SearchableDropdown({
         setIsOpen(true);
     };
 
+    // Try to auto-match typed text to the best matching item
+    const autoMatchItem = (text) => {
+        if (!text || !text.trim()) return;
+        const trimmed = text.trim().toLowerCase();
+        // Exact match first
+        const exact = items.find(i => i.toLowerCase() === trimmed);
+        if (exact) {
+            onChange(exact);
+            return;
+        }
+        // Single filtered result - auto-select it
+        const matches = items.filter(i => i.toLowerCase().includes(trimmed));
+        if (matches.length === 1) {
+            onChange(matches[0]);
+            return;
+        }
+        // If typed text matches start of an item, pick the first
+        const startsWith = items.find(i => i.toLowerCase().startsWith(trimmed));
+        if (startsWith) {
+            onChange(startsWith);
+            return;
+        }
+        // Keep the typed value (trimmed) as fallback
+        onChange(text.trim());
+    };
+
     const handleInputChange = (e) => {
         const value = e.target.value;
         setSearchText(value);
-        onChange(value);
+        // Don't call onChange on every keystroke - only update search filter
         if (!isOpen) {
             updateDropdownPosition();
         }
@@ -90,6 +116,11 @@ export default function SearchableDropdown({
     };
 
     const handleInputBlur = () => {
+        // Auto-match typed text to an item when user leaves the field
+        if (searchText && searchText.trim()) {
+            autoMatchItem(searchText);
+        }
+        setSearchText("");
         if (onBlur) {
             onBlur();
         }
@@ -98,6 +129,10 @@ export default function SearchableDropdown({
     const handleInputKeyDown = (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
+            // Auto-match on Enter
+            if (searchText && searchText.trim()) {
+                autoMatchItem(searchText);
+            }
             setIsOpen(false);
             setSearchText("");
         } else if (e.key === 'Escape') {

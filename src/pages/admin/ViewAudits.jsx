@@ -17,6 +17,7 @@ export default function ViewAudits() {
         status: 'all',
         franchise: 'all'
     });
+    const [dateRange, setDateRange] = useState({ start: '', end: '' });
     const [reviewModal, setReviewModal] = useState(null);
     const [reviewNotes, setReviewNotes] = useState('');
     const [reviewStatus, setReviewStatus] = useState('REVIEWED');
@@ -102,6 +103,15 @@ export default function ViewAudits() {
     const filteredAudits = audits.filter(audit => {
         if (filter.status !== 'all' && audit.status !== filter.status) return false;
         if (filter.franchise !== 'all' && audit.franchise_id !== filter.franchise) return false;
+
+        // Date range filter
+        if (dateRange.start || dateRange.end) {
+            const auditDate = audit.audit_date ? new Date(audit.audit_date).toISOString().split('T')[0] : null;
+            if (!auditDate) return false;
+            if (dateRange.start && auditDate < dateRange.start) return false;
+            if (dateRange.end && auditDate > dateRange.end) return false;
+        }
+
         return true;
     });
 
@@ -155,7 +165,8 @@ export default function ViewAudits() {
                 display: 'flex',
                 gap: 16,
                 marginBottom: 20,
-                flexWrap: 'wrap'
+                flexWrap: 'wrap',
+                alignItems: 'center'
             }}>
                 <div>
                     <label style={{ fontSize: 13, fontWeight: 500, marginRight: 8 }}>Status:</label>
@@ -193,6 +204,53 @@ export default function ViewAudits() {
                         ))}
                     </select>
                 </div>
+
+                {/* Date Range Picker */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <label style={{ fontSize: 13, fontWeight: 500 }}>Date:</label>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '6px 12px', background: '#f9fafb', borderRadius: 8, border: '1px solid #d1d5db' }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2">
+                            <rect x="3" y="4" width="18" height="18" rx="2" />
+                            <line x1="16" y1="2" x2="16" y2="6" />
+                            <line x1="8" y1="2" x2="8" y2="6" />
+                            <line x1="3" y1="10" x2="21" y2="10" />
+                        </svg>
+                        <input
+                            type="date"
+                            value={dateRange.start}
+                            onChange={e => setDateRange({ ...dateRange, start: e.target.value })}
+                            style={{ border: 'none', background: 'transparent', fontSize: 13, padding: '2px 0', color: '#374151', width: 130 }}
+                        />
+                        <span style={{ color: '#d1d5db', fontWeight: 600 }}>→</span>
+                        <input
+                            type="date"
+                            value={dateRange.end}
+                            onChange={e => setDateRange({ ...dateRange, end: e.target.value })}
+                            style={{ border: 'none', background: 'transparent', fontSize: 13, padding: '2px 0', color: '#374151', width: 130 }}
+                        />
+                    </div>
+                </div>
+
+                {(filter.status !== 'all' || filter.franchise !== 'all' || dateRange.start || dateRange.end) && (
+                    <button
+                        onClick={() => {
+                            setFilter({ status: 'all', franchise: 'all' });
+                            setDateRange({ start: '', end: '' });
+                        }}
+                        style={{
+                            padding: '8px 16px',
+                            background: '#fee2e2',
+                            color: '#991b1b',
+                            border: 'none',
+                            borderRadius: 8,
+                            fontSize: 13,
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                        }}
+                    >
+                        Clear All
+                    </button>
+                )}
             </div>
 
             {/* Audits Table */}

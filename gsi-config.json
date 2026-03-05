@@ -1,0 +1,10 @@
+﻿[
+  {
+    "IndexName": "month_year-index",
+    "KeySchema": [
+      {"AttributeName": "month_year", "KeyType": "HASH"},
+      {"AttributeName": "total_score", "KeyType": "RANGE"}
+    ],
+    "Projection": {"ProjectionType": "ALL"}
+  }
+]

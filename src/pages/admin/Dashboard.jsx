@@ -79,11 +79,16 @@ export default function AdminDashboard() {
       if (dateRange.startDate && dateRange.endDate) {
         setLoadingItems(true);
         try {
-          const items = await orderService.getReceivedItems({
+          // Build params - only include franchiseId if not 'all'
+          const params = {
             startDate: dateRange.startDate,
-            endDate: dateRange.endDate,
-            franchiseId: selectedFranchise
-          });
+            endDate: dateRange.endDate
+          };
+          if (selectedFranchise !== 'all') {
+            params.franchiseId = selectedFranchise;
+          }
+
+          const items = await orderService.getReceivedItems(params);
           setReceivedItems(items);
         } catch (err) {
           console.error('Failed to fetch received items:', err);

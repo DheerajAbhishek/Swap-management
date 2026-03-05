@@ -385,17 +385,35 @@ export default function OrderHistory() {
             {selectedOrder.items && selectedOrder.items.length > 0 && (
               <div style={{ marginBottom: 20 }}>
                 <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12 }}>Items</h3>
-                {selectedOrder.items.map((item, idx) => (
-                  <div key={idx} style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    padding: '8px 0',
-                    borderBottom: '1px solid #e5e7eb'
-                  }}>
-                    <span>{item.item_name}</span>
-                    <span style={{ color: '#6b7280' }}>{item.ordered_qty} {item.uom}</span>
-                  </div>
-                ))}
+                {selectedOrder.items.map((item, idx) => {
+                  // Show received qty for RECEIVED orders, otherwise ordered qty
+                  const displayQty = (selectedOrder.status === 'RECEIVED' && item.received_qty !== undefined)
+                    ? item.received_qty
+                    : item.ordered_qty;
+                  const hasDiscrepancy = selectedOrder.status === 'RECEIVED' && item.received_qty !== undefined && item.received_qty !== item.ordered_qty;
+                  const isOverage = hasDiscrepancy && item.received_qty > item.ordered_qty;
+                  const isShortage = hasDiscrepancy && item.received_qty < item.ordered_qty;
+                  const qtyColor = isOverage ? '#16a34a' : isShortage ? '#dc2626' : '#6b7280';
+
+                  return (
+                    <div key={idx} style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      padding: '8px 0',
+                      borderBottom: '1px solid #e5e7eb'
+                    }}>
+                      <span>{item.item_name}</span>
+                      <span style={{ color: qtyColor, fontWeight: hasDiscrepancy ? 600 : 400 }}>
+                        {displayQty} {item.uom}
+                        {hasDiscrepancy && (
+                          <span style={{ fontSize: 11, marginLeft: 6, color: '#9ca3af' }}>
+                            (ordered: {item.ordered_qty})
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             )}
 

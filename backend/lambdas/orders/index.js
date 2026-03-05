@@ -30,6 +30,19 @@ function generateOrderNumber() {
     return `PO-${date}-${random}`;
 }
 
+// Calculate next business day (skip Sundays)
+function getNextBusinessDay(fromDate = new Date()) {
+    const nextDay = new Date(fromDate);
+    nextDay.setDate(nextDay.getDate() + 1);
+
+    // If next day is Sunday (0), move to Monday
+    if (nextDay.getDay() === 0) {
+        nextDay.setDate(nextDay.getDate() + 1);
+    }
+
+    return nextDay.toISOString().split('T')[0];
+}
+
 // Verify token and get user info
 function getUserFromToken(event) {
     const authHeader = event.headers?.authorization || event.headers?.Authorization;
@@ -114,7 +127,7 @@ function canModifyOrder(order) {
     return { allowed: true };
 }
 
-// Get franchise's assigned vendors (vendor_1 and vendor_2)
+// Get franchise's assigned vendors (vendor_1, vendor_2, and vendor_3)
 async function getFranchiseVendors(franchiseId) {
     try {
         const result = await dynamodb.send(new GetCommand({
@@ -127,6 +140,7 @@ async function getFranchiseVendors(franchiseId) {
         const vendors = [];
         if (result.Item.vendor_1_id) vendors.push(result.Item.vendor_1_id);
         if (result.Item.vendor_2_id) vendors.push(result.Item.vendor_2_id);
+        if (result.Item.vendor_3_id) vendors.push(result.Item.vendor_3_id);
 
         return vendors;
     } catch (err) {
@@ -181,6 +195,21 @@ exports.handler = async (event) => {
             if (franchiseId || user.role === 'FRANCHISE') {
                 const filterFranchise = franchiseId || user.franchise_id;
                 orders = orders.filter(o => o.franchise_id === filterFranchise);
+            } else if (user.role === 'KITCHEN' || user.role === 'KITCHEN_STAFF') {
+                // For kitchen users without specific franchise filter, only show orders from their assigned franchises
+                const vendorId = user.vendor_id || user.id;
+
+                // Get all franchises assigned to this vendor
+                const franchisesResult = await dynamodb.send(new ScanCommand({
+                    TableName: 'supply_franchises'
+                }));
+
+                const assignedFranchiseIds = (franchisesResult.Items || [])
+                    .filter(f => f.vendor_1_id === vendorId || f.vendor_2_id === vendorId || f.vendor_3_id === vendorId)
+                    .map(f => f.id);
+
+                // Filter orders to only those from assigned franchises
+                orders = orders.filter(o => assignedFranchiseIds.includes(o.franchise_id));
             }
 
             // Filter by date range
@@ -274,6 +303,58 @@ exports.handler = async (event) => {
             }));
             order.items = itemsResult.Items || [];
 
+            // If order is RECEIVED, fetch discrepancies to get actual received quantities
+            if (order.status === 'RECEIVED') {
+                try {
+                    const discrepanciesResult = await dynamodb.send(new ScanCommand({
+                        TableName: 'supply_discrepancies',
+                        FilterExpression: 'order_id = :orderId',
+                        ExpressionAttributeValues: { ':orderId': orderId }
+                    }));
+
+                    if (discrepanciesResult.Items && discrepanciesResult.Items.length > 0) {
+                        // Create a map of item_name to received_qty from discrepancies
+                        const receivedMap = new Map();
+                        discrepanciesResult.Items.forEach(disc => {
+                            if (disc.received_qty !== undefined) {
+                                receivedMap.set(disc.item_name, disc.received_qty);
+                            }
+                        });
+
+                        // Update items with received quantities
+                        order.items = order.items.map(item => {
+                            if (receivedMap.has(item.item_name)) {
+                                return {
+                                    ...item,
+                                    received_qty: receivedMap.get(item.item_name)
+                                };
+                            }
+                            return { ...item, received_qty: item.ordered_qty };
+                        });
+                    } else if (order.received_items && Array.isArray(order.received_items)) {
+                        // Fallback to received_items if no discrepancies found
+                        const receivedMap = new Map(order.received_items.map(ri => [ri.orderItemId, ri.receivedQty]));
+                        order.items = order.items.map(item => ({
+                            ...item,
+                            received_qty: receivedMap.has(item.id) ? receivedMap.get(item.id) : item.ordered_qty
+                        }));
+                    } else {
+                        // No discrepancies and no received_items, assume all items received as ordered
+                        order.items = order.items.map(item => ({
+                            ...item,
+                            received_qty: item.ordered_qty
+                        }));
+                    }
+                } catch (err) {
+                    console.error('Failed to fetch discrepancies:', err);
+                    // Fallback: assume all items received as ordered
+                    order.items = order.items.map(item => ({
+                        ...item,
+                        received_qty: item.ordered_qty
+                    }));
+                }
+            }
+
             return {
                 statusCode: 200,
                 headers,
@@ -344,6 +425,58 @@ exports.handler = async (event) => {
                     }
                 }));
                 order.items = itemsResult.Items || [];
+
+                // If order is RECEIVED, fetch discrepancies to get actual received quantities
+                if (order.status === 'RECEIVED') {
+                    try {
+                        const discrepanciesResult = await dynamodb.send(new ScanCommand({
+                            TableName: 'supply_discrepancies',
+                            FilterExpression: 'order_id = :orderId',
+                            ExpressionAttributeValues: { ':orderId': order.id }
+                        }));
+
+                        if (discrepanciesResult.Items && discrepanciesResult.Items.length > 0) {
+                            // Create a map of item_name to received_qty from discrepancies
+                            const receivedMap = new Map();
+                            discrepanciesResult.Items.forEach(disc => {
+                                if (disc.received_qty !== undefined) {
+                                    receivedMap.set(disc.item_name, disc.received_qty);
+                                }
+                            });
+
+                            // Update items with received quantities
+                            order.items = order.items.map(item => {
+                                if (receivedMap.has(item.item_name)) {
+                                    return {
+                                        ...item,
+                                        received_qty: receivedMap.get(item.item_name)
+                                    };
+                                }
+                                return { ...item, received_qty: item.ordered_qty };
+                            });
+                        } else if (order.received_items && Array.isArray(order.received_items)) {
+                            // Fallback to received_items if no discrepancies found
+                            const receivedMap = new Map(order.received_items.map(ri => [ri.orderItemId, ri.receivedQty]));
+                            order.items = order.items.map(item => ({
+                                ...item,
+                                received_qty: receivedMap.has(item.id) ? receivedMap.get(item.id) : item.ordered_qty
+                            }));
+                        } else {
+                            // No discrepancies and no received_items, assume all items received as ordered
+                            order.items = order.items.map(item => ({
+                                ...item,
+                                received_qty: item.ordered_qty
+                            }));
+                        }
+                    } catch (err) {
+                        console.error('Failed to fetch discrepancies for order:', order.id, err);
+                        // Fallback: assume all items received as ordered
+                        order.items = order.items.map(item => ({
+                            ...item,
+                            received_qty: item.ordered_qty
+                        }));
+                    }
+                }
             }
 
             // Sort by created_at desc
@@ -371,12 +504,12 @@ exports.handler = async (event) => {
             const orderId = generateId();
             const orderNumber = generateOrderNumber();
 
-            // Get vendor info - franchise selects which vendor for this order (vendor_1 or vendor_2)
+            // Get vendor info - franchise selects which vendor for this order (vendor_1, vendor_2, or vendor_3)
             let vendorId = body.vendor_id || '';
             let vendorName = '';
             let vendorItems = [];
 
-            // Validate that the selected vendor is vendor_1 or vendor_2 of this franchise
+            // Validate that the selected vendor is vendor_1, vendor_2, or vendor_3 of this franchise
             try {
                 const franchiseResult = await dynamodb.send(new GetCommand({
                     TableName: 'supply_franchises',
@@ -386,13 +519,14 @@ exports.handler = async (event) => {
                 if (franchiseResult.Item) {
                     const vendor1Id = franchiseResult.Item.vendor_1_id;
                     const vendor2Id = franchiseResult.Item.vendor_2_id;
+                    const vendor3Id = franchiseResult.Item.vendor_3_id;
 
                     // If no vendor specified, use vendor_1 by default
                     if (!vendorId) {
-                        vendorId = vendor1Id || vendor2Id || '';
+                        vendorId = vendor1Id || vendor2Id || vendor3Id || '';
                     } else {
                         // Validate selected vendor is assigned to franchise
-                        if (vendorId !== vendor1Id && vendorId !== vendor2Id) {
+                        if (vendorId !== vendor1Id && vendorId !== vendor2Id && vendorId !== vendor3Id) {
                             return {
                                 statusCode: 400,
                                 headers,
@@ -470,6 +604,7 @@ exports.handler = async (event) => {
                 status: 'PLACED',
                 total_amount: totalAmount, // franchise_price total (what vendor charges)
                 total_vendor_cost: totalVendorCost, // vendor's total cost
+                delivery_date: body.delivery_date || getNextBusinessDay(), // Default to next business day
                 created_at: new Date().toISOString(),
                 created_by: user.userId,
                 created_by_name: user.name,
@@ -633,23 +768,32 @@ exports.handler = async (event) => {
             // Check for unresolved discrepancies before accepting
             const discrepanciesResult = await dynamodb.send(new ScanCommand({
                 TableName: DISCREPANCIES_TABLE,
-                FilterExpression: 'order_id = :orderId AND resolved = :resolved',
+                FilterExpression: 'order_id = :orderId AND franchise_closed = :closed',
                 ExpressionAttributeValues: {
                     ':orderId': orderId,
-                    ':resolved': false
+                    ':closed': false
                 }
             }));
 
             const unresolvedDiscrepancies = discrepanciesResult.Items || [];
 
             if (unresolvedDiscrepancies.length > 0) {
+                // Check if any are waiting for vendor acknowledgment vs waiting for franchise closure
+                const waitingForVendor = unresolvedDiscrepancies.filter(d => !d.vendor_acknowledged).length;
+                const waitingForFranchise = unresolvedDiscrepancies.filter(d => d.vendor_acknowledged && !d.franchise_closed).length;
+
                 return {
                     statusCode: 400,
                     headers,
                     body: JSON.stringify({
                         error: 'Cannot accept order with unresolved discrepancies',
                         unresolvedCount: unresolvedDiscrepancies.length,
-                        discrepancies: unresolvedDiscrepancies
+                        waitingForVendor,
+                        waitingForFranchise,
+                        discrepancies: unresolvedDiscrepancies,
+                        message: waitingForVendor > 0
+                            ? 'Waiting for vendor to acknowledge discrepancies'
+                            : 'Vendor acknowledged - you can now close the discrepancies in the order details'
                     })
                 };
             }
@@ -753,8 +897,9 @@ exports.handler = async (event) => {
                 if (franchiseResult.Item) {
                     const vendor1Id = franchiseResult.Item.vendor_1_id;
                     const vendor2Id = franchiseResult.Item.vendor_2_id;
+                    const vendor3Id = franchiseResult.Item.vendor_3_id;
 
-                    if (vendorId !== vendor1Id && vendorId !== vendor2Id) {
+                    if (vendorId !== vendor1Id && vendorId !== vendor2Id && vendorId !== vendor3Id) {
                         return {
                             statusCode: 400,
                             headers,

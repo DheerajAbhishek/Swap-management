@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { attendanceService } from '../../services/attendanceService';
 import { staffService } from '../../services/staffService';
+import AttendanceCalendar from '../../components/AttendanceCalendar';
 import {
   CalendarIcon,
   ChartIcon,
@@ -29,7 +30,7 @@ export default function StaffAttendance() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
-  const [activeTab, setActiveTab] = useState('today'); // 'today' or 'history'
+  const [activeTab, setActiveTab] = useState('today'); // 'today', 'history', or 'calendar'
   const [selectedRecord, setSelectedRecord] = useState(null); // For viewing photos
 
   // Camera state
@@ -490,25 +491,25 @@ export default function StaffAttendance() {
           </button>
         </div>
 
-      {activeTab === 'history' ? (
-        renderHistoryTab()
-      ) : (
-        <div style={{
-          background: 'white',
-          borderRadius: 16,
-          padding: 32,
-          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
-        }}>
-          <div style={{ textAlign: 'center', marginBottom: 24 }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>🕐</div>
-            <h1 style={{ fontSize: 24, fontWeight: 700, color: '#1f2937', marginBottom: 8 }}>
-              Currently Working
-            </h1>
-            <p style={{ color: '#6b7280' }}>
-              Checked in at {checkInTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-              {todayAttendance.is_late && <span style={{ color: '#f59e0b', marginLeft: 8 }}>⚠️ Late</span>}
-            </p>
-          </div>
+        {activeTab === 'history' ? (
+          renderHistoryTab()
+        ) : (
+          <div style={{
+            background: 'white',
+            borderRadius: 16,
+            padding: 32,
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+          }}>
+            <div style={{ textAlign: 'center', marginBottom: 24 }}>
+              <div style={{ fontSize: 48, marginBottom: 16 }}>🕐</div>
+              <h1 style={{ fontSize: 24, fontWeight: 700, color: '#1f2937', marginBottom: 8 }}>
+                Currently Working
+              </h1>
+              <p style={{ color: '#6b7280' }}>
+                Checked in at {checkInTime.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                {todayAttendance.is_late && <span style={{ color: '#f59e0b', marginLeft: 8 }}>⚠️ Late</span>}
+              </p>
+            </div>
 
             {success && (
               <div style={{
@@ -649,12 +650,40 @@ export default function StaffAttendance() {
             gap: 6
           }}
         >
-          <ChartIcon size={16} color={activeTab === 'history' ? 'white' : '#6b7280'} /> History & Score
+          <ChartIcon size={16} color={activeTab === 'history' ? 'white' : '#6b7280'} /> History
+        </button>
+        <button
+          onClick={() => setActiveTab('calendar')}
+          style={{
+            flex: 1,
+            padding: '12px 16px',
+            background: activeTab === 'calendar' ? '#3b82f6' : '#f3f4f6',
+            color: activeTab === 'calendar' ? 'white' : '#6b7280',
+            border: 'none',
+            borderRadius: 8,
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6
+          }}
+        >
+          📅 Calendar
         </button>
       </div>
 
       {activeTab === 'history' ? (
         renderHistoryTab()
+      ) : activeTab === 'calendar' ? (
+        <div style={{ maxWidth: 800, margin: '0 auto' }}>
+          <AttendanceCalendar
+            attendanceRecords={attendanceHistory}
+            joiningDate={staffInfo?.joining_date || staffInfo?.created_at?.split('T')[0]}
+            currentMonth={0}
+          />
+        </div>
       ) : (
         <div style={{
           background: 'white',

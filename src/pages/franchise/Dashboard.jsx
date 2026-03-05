@@ -123,12 +123,13 @@ export default function FranchiseDashboard() {
   // Load received items when date range changes
   useEffect(() => {
     const fetchReceivedItems = async () => {
-      if (dateRange.startDate && dateRange.endDate) {
+      if (dateRange.startDate && dateRange.endDate && user?.franchise_id) {
         setLoadingItems(true);
         try {
           const items = await orderService.getReceivedItems({
             startDate: dateRange.startDate,
-            endDate: dateRange.endDate
+            endDate: dateRange.endDate,
+            franchiseId: user.franchise_id
           });
           setReceivedItems(items);
         } catch (err) {

@@ -116,7 +116,7 @@ export default function WastageForm({ items, onSubmit, loading, initialData = []
                   </button>
                 ) : null}
               </div>
-              
+
               <div style={{ marginBottom: 10 }}>
                 <label style={{ display: 'block', fontSize: 11, color: '#6b7280', marginBottom: 4 }}>Item</label>
                 <SearchableDropdown
@@ -296,13 +296,13 @@ export default function WastageForm({ items, onSubmit, loading, initialData = []
         </div>
       )}
 
-      <div style={{ 
-        display: 'flex', 
+      <div style={{
+        display: 'flex',
         flexDirection: isMobile ? 'column' : 'row',
-        justifyContent: 'space-between', 
-        alignItems: isMobile ? 'stretch' : 'center', 
+        justifyContent: 'space-between',
+        alignItems: isMobile ? 'stretch' : 'center',
         gap: isMobile ? 12 : 0,
-        marginTop: 12 
+        marginTop: 12
       }}>
         <button
           type="button"
@@ -321,13 +321,13 @@ export default function WastageForm({ items, onSubmit, loading, initialData = []
           + Add Item
         </button>
 
-        <div style={{ 
-          display: 'flex', 
+        <div style={{
+          display: 'flex',
           flexDirection: isMobile ? 'column' : 'row',
-          alignItems: isMobile ? 'stretch' : 'center', 
-          gap: isMobile ? 12 : 16 
+          alignItems: isMobile ? 'stretch' : 'center',
+          gap: isMobile ? 12 : 16
         }}>
-          <div style={{ 
+          <div style={{
             padding: isMobile ? '8px 12px' : 0,
             background: isMobile ? '#fef2f2' : 'transparent',
             borderRadius: isMobile ? 8 : 0,

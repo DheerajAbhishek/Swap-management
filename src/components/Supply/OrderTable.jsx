@@ -63,9 +63,25 @@ export default function OrderTable({
             </div>
 
             {userRole === 'ADMIN' && (
-              <div style={{ fontSize: 13, color: '#374151', marginBottom: 8 }}>
-                <strong>Franchise:</strong> {order.franchise_name || order.franchise_id}
-              </div>
+              <>
+                <div style={{ fontSize: 13, color: '#374151', marginBottom: 8 }}>
+                  <strong>Franchise:</strong> {order.franchise_name || order.franchise_id}
+                </div>
+                <div style={{ fontSize: 13, color: '#374151', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#f97316" strokeWidth="2">
+                    <rect x="1" y="3" width="15" height="13" rx="2" />
+                    <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
+                    <circle cx="5.5" cy="18.5" r="2.5" />
+                    <circle cx="18.5" cy="18.5" r="2.5" />
+                  </svg>
+                  <span><strong>Vendor:</strong> {order.vendor_name || 'N/A'}</span>
+                </div>
+                {order.delivery_date && (
+                  <div style={{ fontSize: 13, color: '#374151', marginBottom: 8 }}>
+                    <strong>Delivery:</strong> {order.delivery_date}
+                  </div>
+                )}
+              </>
             )}
 
             {/* Show kitchen name for franchise users */}
@@ -142,8 +158,10 @@ export default function OrderTable({
         <thead>
           <tr style={{ background: '#f9fafb' }}>
             <th style={thStyle}>Order #</th>
-            <th style={thStyle}>Date</th>
+            <th style={thStyle}>Created</th>
+            {userRole === 'ADMIN' && <th style={thStyle}>Delivery</th>}
             {userRole === 'ADMIN' && <th style={thStyle}>Franchise</th>}
+            {userRole === 'ADMIN' && <th style={thStyle}>Vendor</th>}
             {(userRole === 'FRANCHISE' || userRole === 'FRANCHISE_STAFF') && <th style={thStyle}>Kitchen</th>}
             {(userRole === 'KITCHEN' || userRole === 'KITCHEN_STAFF') && <th style={thStyle}>Franchise</th>}
             <th style={thStyle}>Items</th>
@@ -164,7 +182,27 @@ export default function OrderTable({
                 {formatDateTime(order.created_at)}
               </td>
               {userRole === 'ADMIN' && (
+                <td style={tdStyle}>
+                  <span style={{ color: '#059669', fontWeight: 500 }}>
+                    {order.delivery_date || '-'}
+                  </span>
+                </td>
+              )}
+              {userRole === 'ADMIN' && (
                 <td style={tdStyle}>{order.franchise_name || order.franchise_id}</td>
+              )}
+              {userRole === 'ADMIN' && (
+                <td style={tdStyle}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#f97316' }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="1" y="3" width="15" height="13" rx="2" />
+                      <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
+                      <circle cx="5.5" cy="18.5" r="2.5" />
+                      <circle cx="18.5" cy="18.5" r="2.5" />
+                    </svg>
+                    {order.vendor_name || 'N/A'}
+                  </span>
+                </td>
               )}
               {(userRole === 'FRANCHISE' || userRole === 'FRANCHISE_STAFF') && (
                 <td style={tdStyle}>

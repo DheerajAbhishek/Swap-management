@@ -102,13 +102,13 @@ async function getFranchiseVendors(franchiseId) {
             TableName: 'supply_franchises',
             Key: { id: franchiseId }
         }));
-        
+
         if (!result.Item) return [];
 
         const vendors = [];
         if (result.Item.vendor_1_id) vendors.push(result.Item.vendor_1_id);
         if (result.Item.vendor_2_id) vendors.push(result.Item.vendor_2_id);
-        
+
         return vendors;
     } catch (err) {
         console.error('Failed to get franchise vendors:', err);
@@ -162,6 +162,21 @@ exports.handler = async (event) => {
             if (franchiseId || user.role === 'FRANCHISE') {
                 const filterFranchise = franchiseId || user.franchise_id;
                 orders = orders.filter(o => o.franchise_id === filterFranchise);
+            } else if (user.role === 'KITCHEN' || user.role === 'KITCHEN_STAFF') {
+                // For kitchen users without specific franchise filter, only show orders from their assigned franchises
+                const vendorId = user.vendor_id || user.id;
+
+                // Get all franchises assigned to this vendor
+                const franchisesResult = await dynamodb.send(new ScanCommand({
+                    TableName: 'supply_franchises'
+                }));
+
+                const assignedFranchiseIds = (franchisesResult.Items || [])
+                    .filter(f => f.vendor_1_id === vendorId || f.vendor_2_id === vendorId || f.vendor_3_id === vendorId)
+                    .map(f => f.id);
+
+                // Filter orders to only those from assigned franchises
+                orders = orders.filter(o => assignedFranchiseIds.includes(o.franchise_id));
             }
 
             // Filter by date range

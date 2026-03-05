@@ -7,7 +7,7 @@ import { DEFAULT_UOM_OPTIONS, formatCurrency } from '../../utils/constants';
 /**
  * OrderForm - Form for creating purchase orders (Mobile Responsive)
  */
-export default function OrderForm({ items, onSubmit, loading, initialData, submitButtonText = 'Place Order', error, isSubmitting }) {
+export default function OrderForm({ items, onSubmit, loading, initialData, submitButtonText = 'Place Order', error, isSubmitting, allowPriceEdit = false, allowPastDeliveryDate = false }) {
   const [rows, setRows] = useState([
     { item: '', qty: '', uom: '', price: 0, total: 0 }
   ]);
@@ -45,17 +45,22 @@ export default function OrderForm({ items, onSubmit, loading, initialData, submi
 
   // Initialize flatpickr for date selection
   useEffect(() => {
+    if (flatpickrInstance.current) {
+      flatpickrInstance.current.destroy();
+      flatpickrInstance.current = null;
+    }
     if (dateInputRef.current) {
+      const defaultDate = allowPastDeliveryDate ? new Date() : new Date().fp_incr(1);
       flatpickrInstance.current = flatpickr(dateInputRef.current, {
         dateFormat: 'Y-m-d',
-        minDate: 'today',
-        defaultDate: new Date().fp_incr(1), // Tomorrow by default
+        minDate: allowPastDeliveryDate ? undefined : 'today',
+        maxDate: undefined,
+        defaultDate,
         onChange: (selectedDates, dateStr) => {
           setDeliveryDate(dateStr);
         }
       });
-      // Set initial date
-      setDeliveryDate(flatpickrInstance.current.formatDate(new Date().fp_incr(1), 'Y-m-d'));
+      setDeliveryDate(flatpickrInstance.current.formatDate(defaultDate, 'Y-m-d'));
     }
 
     return () => {
@@ -63,7 +68,7 @@ export default function OrderForm({ items, onSubmit, loading, initialData, submi
         flatpickrInstance.current.destroy();
       }
     };
-  }, []);
+  }, [allowPastDeliveryDate]);
 
   const itemNames = items.map(i => i.name);
 
@@ -75,8 +80,11 @@ export default function OrderForm({ items, onSubmit, loading, initialData, submi
     const updated = [...rows];
     updated[index].item = itemName;
 
-    // Auto-fill price and UOM from item data
-    const itemData = items.find(i => i.name.toLowerCase() === itemName.toLowerCase());
+    // Auto-fill price and UOM from item data (trim and use flexible matching)
+    const trimmedName = (itemName || '').trim().toLowerCase();
+    const itemData = items.find(i => i.name.trim().toLowerCase() === trimmedName)
+      || items.find(i => i.name.trim().toLowerCase().includes(trimmedName))
+      || items.find(i => trimmedName.includes(i.name.trim().toLowerCase()));
     if (itemData) {
       updated[index].price = itemData.standard_price || 0;
       updated[index].uom = itemData.defaultUom || 'kg';
@@ -90,6 +98,13 @@ export default function OrderForm({ items, onSubmit, loading, initialData, submi
     const updated = [...rows];
     updated[index].qty = qty;
     updated[index].total = qty * updated[index].price;
+    setRows(updated);
+  };
+
+  const handlePriceChange = (index, price) => {
+    const updated = [...rows];
+    updated[index].price = price;
+    updated[index].total = updated[index].qty * price;
     setRows(updated);
   };
 
@@ -236,7 +251,24 @@ export default function OrderForm({ items, onSubmit, loading, initialData, submi
               <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 12, borderTop: '1px solid #e5e7eb' }}>
                 <div>
                   <span style={{ fontSize: 12, color: '#6b7280' }}>Price: </span>
-                  <span style={{ fontSize: 14, fontWeight: 500 }}>{formatCurrency(row.price)}</span>
+                  {allowPriceEdit ? (
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={row.price}
+                      onChange={(e) => handlePriceChange(index, parseFloat(e.target.value) || 0)}
+                      style={{
+                        width: '80px',
+                        padding: '4px 8px',
+                        borderRadius: 6,
+                        border: '1px solid #d1d5db',
+                        fontSize: 13
+                      }}
+                    />
+                  ) : (
+                    <span style={{ fontSize: 14, fontWeight: 500 }}>{formatCurrency(row.price)}</span>
+                  )}
                 </div>
                 <div>
                   <span style={{ fontSize: 12, color: '#6b7280' }}>Total: </span>
@@ -298,9 +330,21 @@ export default function OrderForm({ items, onSubmit, loading, initialData, submi
                     </select>
                   </td>
                   <td style={tdStyle}>
-                    <span style={{ color: '#6b7280', fontWeight: 500 }}>
-                      {formatCurrency(row.price)}
-                    </span>
+                    {allowPriceEdit ? (
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={row.price}
+                        onChange={(e) => handlePriceChange(index, parseFloat(e.target.value) || 0)}
+                        style={inputStyle}
+                        placeholder="0"
+                      />
+                    ) : (
+                      <span style={{ color: '#6b7280', fontWeight: 500 }}>
+                        {formatCurrency(row.price)}
+                      </span>
+                    )}
                   </td>
                   <td style={tdStyle}>
                     <span style={{ fontWeight: 600 }}>

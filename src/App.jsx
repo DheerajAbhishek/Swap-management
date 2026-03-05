@@ -13,8 +13,11 @@ import AdminDailyReports from './pages/admin/DailyReports'
 import AdminViewComplaints from './pages/admin/ViewComplaints'
 import AdminAuditorManagement from './pages/admin/AuditorManagement'
 import AdminViewAudits from './pages/admin/ViewAudits'
+import AdminViewMisaAudits from './pages/admin/ViewMisaAudits'
 import AdminStaffManagement from './pages/admin/StaffManagement'
 import AdminAttendanceView from './pages/admin/AttendanceView'
+import AdminStaffAttendanceManagement from './pages/admin/StaffAttendanceManagement'
+import AdminStaffPerformance from './pages/admin/StaffPerformanceDashboard'
 import AdminFinance from './pages/admin/Finance'
 import AdminVendorLedger from './pages/admin/VendorLedger'
 import AdminPaymentHistory from './pages/admin/PaymentHistory'
@@ -26,6 +29,7 @@ import KitchenStaffManagement from './pages/kitchen/StaffManagement'
 import KitchenFinance from './pages/kitchen/Finance'
 import KitchenProfile from './pages/kitchen/Profile'
 import KitchenDailyEntry from './pages/kitchen/DailyEntry'
+import KitchenMisaFeedback from './pages/kitchen/MisaAuditFeedback'
 import FranchiseDashboard from './pages/franchise/Dashboard'
 import FranchiseCreateOrder from './pages/franchise/CreateOrder'
 import FranchiseEditOrder from './pages/franchise/EditOrder'
@@ -39,10 +43,19 @@ import FranchiseStaffAttendance from './pages/franchise/StaffAttendance'
 import AuditorDashboard from './pages/auditor/Dashboard'
 import AuditorConductAudit from './pages/auditor/ConductAudit'
 import AuditorHistory from './pages/auditor/AuditHistory'
+import AuditorMisaAudit from './pages/auditor/MisaAudit'
+import AuditorMisaAuditHistory from './pages/auditor/MisaAuditHistory'
+// Hygiene Monitor pages
+import AdminHygieneMonitorManagement from './pages/admin/HygieneMonitorManagement'
+import HygieneMonitorDashboard from './pages/hygiene-monitor/Dashboard'
+import HygieneMonitorAudits from './pages/hygiene-monitor/Audits'
+import HygieneMonitorStaffAttendanceManagement from './pages/hygiene-monitor/StaffAttendanceManagement'
+import HygieneMonitorStaffPerformance from './pages/hygiene-monitor/StaffPerformance'
 // Franchise Staff pages
 import FranchiseStaffDashboard from './pages/franchise-staff/Dashboard'
 import FranchiseStaffAttendancePage from './pages/franchise-staff/Attendance'
 import FranchiseStaffCreateOrder from './pages/franchise-staff/CreateOrder'
+import FranchiseStaffEditOrder from './pages/franchise-staff/EditOrder'
 import FranchiseStaffOrderHistory from './pages/franchise-staff/OrderHistory'
 import FranchiseStaffConfirmReceipt from './pages/franchise-staff/ConfirmReceipt'
 import FranchiseStaffDailyEntry from './pages/franchise-staff/DailyEntry'
@@ -55,6 +68,7 @@ import KitchenStaffIncomingOrders from './pages/kitchen-staff/IncomingOrders'
 import KitchenStaffDailyEntry from './pages/kitchen-staff/DailyEntry'
 import KitchenStaffViewDiscrepancies from './pages/kitchen/ViewDiscrepancies'
 import KitchenStaffViewComplaints from './pages/kitchen/ViewComplaints'
+import KitchenStaffMisaFeedback from './pages/kitchen-staff/MisaAuditFeedback'
 import Layout from './components/Layout'
 
 // Protected Route Component
@@ -80,6 +94,8 @@ function ProtectedRoute({ children, allowedRoles }) {
         return <Navigate to="/franchise-staff" replace />
       case 'KITCHEN_STAFF':
         return <Navigate to="/kitchen-staff" replace />
+      case 'HYGIENE_MONITOR':
+        return <Navigate to="/hygiene-monitor" replace />
       default:
         return <Navigate to="/login" replace />
     }
@@ -109,6 +125,8 @@ function RoleBasedRedirect() {
       return <Navigate to="/franchise-staff" replace />
     case 'KITCHEN_STAFF':
       return <Navigate to="/kitchen-staff" replace />
+    case 'HYGIENE_MONITOR':
+      return <Navigate to="/hygiene-monitor" replace />
     default:
       return <Navigate to="/login" replace />
   }
@@ -137,12 +155,16 @@ export default function App() {
         <Route path="franchises" element={<AdminFranchiseManagement />} />
         <Route path="franchises/:franchiseId/items" element={<AdminFranchiseItems />} />
         <Route path="auditors" element={<AdminAuditorManagement />} />
+        <Route path="hygiene-monitors" element={<AdminHygieneMonitorManagement />} />
         <Route path="audits" element={<AdminViewAudits />} />
+        <Route path="misa-audits" element={<AdminViewMisaAudits />} />
         <Route path="daily-reports" element={<AdminDailyReports />} />
         <Route path="discrepancies" element={<AdminDiscrepancies />} />
         <Route path="complaints" element={<AdminViewComplaints />} />
         <Route path="staff" element={<AdminStaffManagement />} />
+        <Route path="staff-performance" element={<AdminStaffPerformance />} />
         <Route path="attendance" element={<AdminAttendanceView />} />
+        <Route path="staff-attendance-management" element={<AdminStaffAttendanceManagement />} />
         <Route path="finance" element={<AdminFinance />} />
         <Route path="finance/vendor/:vendorId" element={<AdminVendorLedger />} />
         <Route path="finance/payments" element={<AdminPaymentHistory />} />
@@ -160,6 +182,7 @@ export default function App() {
         <Route path="complaints" element={<KitchenViewComplaints />} />
         <Route path="staff" element={<KitchenStaffManagement />} />
         <Route path="finance" element={<KitchenFinance />} />
+        <Route path="misa-feedback" element={<KitchenMisaFeedback />} />
         <Route path="profile" element={<KitchenProfile />} />
       </Route>
 
@@ -179,6 +202,7 @@ export default function App() {
         <Route path="discrepancies" element={<FranchiseViewDiscrepancies />} />
         <Route path="confirm-receipt/:orderId" element={<FranchiseConfirmReceipt />} />
         <Route path="staff" element={<FranchiseStaffManagement />} />
+        <Route path="staff-performance" element={<AdminStaffPerformance />} />
         <Route path="staff-attendance" element={<FranchiseStaffAttendance />} />
       </Route>
 
@@ -191,6 +215,8 @@ export default function App() {
         <Route index element={<AuditorDashboard />} />
         <Route path="conduct-audit" element={<AuditorConductAudit />} />
         <Route path="history" element={<AuditorHistory />} />
+        <Route path="misa-audit" element={<AuditorMisaAudit />} />
+        <Route path="misa-history" element={<AuditorMisaAuditHistory />} />
       </Route>
 
       {/* Franchise Staff Routes */}
@@ -203,6 +229,7 @@ export default function App() {
         <Route path="attendance" element={<FranchiseStaffAttendancePage />} />
         <Route path="daily-entry" element={<FranchiseStaffDailyEntry />} />
         <Route path="create-order" element={<FranchiseStaffCreateOrder />} />
+        <Route path="edit-order/:id" element={<FranchiseStaffEditOrder />} />
         <Route path="orders" element={<FranchiseStaffOrderHistory />} />
         <Route path="complaints" element={<FranchiseStaffComplaints />} />
         <Route path="discrepancies" element={<FranchiseStaffViewDiscrepancies />} />
@@ -219,6 +246,19 @@ export default function App() {
         <Route path="orders" element={<KitchenStaffIncomingOrders />} />
         <Route path="discrepancies" element={<KitchenStaffViewDiscrepancies />} />
         <Route path="complaints" element={<KitchenStaffViewComplaints />} />
+        <Route path="misa-feedback" element={<KitchenStaffMisaFeedback />} />
+      </Route>
+
+      {/* Hygiene Monitor Routes */}
+      <Route path="/hygiene-monitor" element={
+        <ProtectedRoute allowedRoles={['HYGIENE_MONITOR']}>
+          <Layout />
+        </ProtectedRoute>
+      }>
+        <Route index element={<HygieneMonitorDashboard />} />
+        <Route path="attendance" element={<HygieneMonitorStaffAttendanceManagement />} />
+        <Route path="audits" element={<HygieneMonitorAudits />} />
+        <Route path="staff-performance" element={<HygieneMonitorStaffPerformance />} />
       </Route>
 
       {/* Catch all - redirect to login */}

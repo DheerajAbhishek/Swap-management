@@ -104,8 +104,8 @@ exports.handler = async (event) => {
         return await getVendor(vendorId);
       }
 
-      // GET /vendors/:id or GET /vendors - Allow ADMIN, FRANCHISE, AUDITOR to view vendors
-      if (decoded.role === 'ADMIN' || decoded.role === 'FRANCHISE' || decoded.role === 'AUDITOR') {
+      // GET /vendors/:id or GET /vendors - Allow ADMIN, FRANCHISE, FRANCHISE_STAFF, AUDITOR to view vendors
+      if (decoded.role === 'ADMIN' || decoded.role === 'FRANCHISE' || decoded.role === 'FRANCHISE_STAFF' || decoded.role === 'AUDITOR') {
         const vendorId = pathParts[1];
         if (vendorId) {
           return await getVendor(vendorId);
@@ -237,9 +237,9 @@ async function getVendorFranchises(vendorId) {
     TableName: 'supply_franchises'
   }));
 
-  // Filter franchises that have this vendor as vendor_1 or vendor_2
+  // Filter franchises that have this vendor as vendor_1, vendor_2, or vendor_3
   const franchises = (franchisesResult.Items || []).filter(franchise => {
-    return franchise.vendor_1_id === vendorId || franchise.vendor_2_id === vendorId;
+    return franchise.vendor_1_id === vendorId || franchise.vendor_2_id === vendorId || franchise.vendor_3_id === vendorId;
   });
 
   // Get orders for stats
@@ -251,7 +251,7 @@ async function getVendorFranchises(vendorId) {
 
   // Calculate stats for each franchise
   const franchisesWithStats = franchises.map(franchise => {
-    const franchiseOrders = allOrders.filter(order => 
+    const franchiseOrders = allOrders.filter(order =>
       order.franchise_id === franchise.id && order.vendor_id === vendorId
     );
 
@@ -269,9 +269,9 @@ async function getVendorFranchises(vendorId) {
       ? franchiseOrders.sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0].created_at
       : null;
 
-    // Determine vendor slot (1 or 2)
-    const vendorSlot = franchise.vendor_1_id === vendorId ? 1 : 2;
-    const vendorSlotName = vendorSlot === 1 ? 'SFI' : 'RAW_MATERIALS';
+    // Determine vendor slot (1, 2, or 3)
+    const vendorSlot = franchise.vendor_1_id === vendorId ? 1 : (franchise.vendor_2_id === vendorId ? 2 : 3);
+    const vendorSlotName = vendorSlot === 1 ? 'SFI' : (vendorSlot === 2 ? 'RAW_MATERIALS' : 'GENERAL_MIXED');
 
     return {
       ...franchise,
@@ -308,7 +308,8 @@ async function createVendor(data) {
     location: data.location || '',
     phone: data.phone || '',
     email: data.email,
-    vendor_type: data.vendor_type || 'SFI', // 'SFI' or 'RAW_MATERIALS'
+    vendor_type: data.vendor_type || 'SFI', // 'SFI', 'RAW_MATERIALS', or 'PETTY_CASH'
+    allow_price_edit: data.vendor_type === 'PETTY_CASH' || data.allow_price_edit || false, // Petty cash allows price editing
     margin_percent: data.margin_percent || 5,
     // Bank details
     bank_name: data.bank_name || '',
@@ -367,7 +368,7 @@ async function updateVendor(vendorId, data) {
   const expressionAttributeNames = {};
   const expressionAttributeValues = {};
 
-  const fields = ['name', 'owner_name', 'location', 'phone', 'email', 'vendor_type', 'margin_percent', 'status', 'items', 'bank_name', 'bank_location', 'account_number', 'ifsc_code', 'account_holder_name'];
+  const fields = ['name', 'owner_name', 'location', 'phone', 'email', 'vendor_type', 'allow_price_edit', 'margin_percent', 'status', 'items', 'bank_name', 'bank_location', 'account_number', 'ifsc_code', 'account_holder_name'];
 
   fields.forEach(field => {
     if (data[field] !== undefined) {
@@ -406,7 +407,7 @@ async function updateVendor(vendorId, data) {
     userUpdateExpressions.push('#name = :name');
     userExpressionAttributeNames['#name'] = 'name';
     userExpressionAttributeValues[':name'] = data.name;
-    
+
     // Also update vendor_name field
     userUpdateExpressions.push('#vendor_name = :vendor_name');
     userExpressionAttributeNames['#vendor_name'] = 'vendor_name';

@@ -236,8 +236,48 @@ async function getAllReports() {
   };
 }
 
+// Helper: get the most recent closing_total before a given date for a franchise
+async function getMostRecentClosing(franchiseId, beforeDate) {
+  // Look back up to 90 days to find the most recent report with a closing
+  const lookbackDate = new Date(beforeDate);
+  lookbackDate.setDate(lookbackDate.getDate() - 90);
+  const lookbackStr = lookbackDate.toISOString().split('T')[0];
+
+  // The day before beforeDate
+  const dayBefore = new Date(beforeDate);
+  dayBefore.setDate(dayBefore.getDate() - 1);
+  const dayBeforeStr = dayBefore.toISOString().split('T')[0];
+
+  const result = await dynamoDB.send(new QueryCommand({
+    TableName: TABLE_NAME,
+    KeyConditionExpression: 'franchise_id = :fid AND report_date BETWEEN :start AND :end',
+    ExpressionAttributeValues: {
+      ':fid': franchiseId,
+      ':start': lookbackStr,
+      ':end': dayBeforeStr
+    },
+    ScanIndexForward: false, // most recent first
+    Limit: 10
+  }));
+
+  // Find the first item that has a closing_total
+  const recentWithClosing = (result.Items || []).find(
+    item => item.closing_total !== undefined && item.closing_total !== null
+  );
+  return recentWithClosing?.closing_total || 0;
+}
+
 // Save/Create daily report
 async function saveReport(data) {
+  // Fetch most recent closing before this date (to use as opening)
+  let opening = 0;
+  try {
+    const reportDate = data.date || new Date().toISOString().split('T')[0];
+    opening = await getMostRecentClosing(data.franchise_id, reportDate);
+  } catch (err) {
+    console.log('Could not fetch previous closing:', err);
+  }
+
   const report = {
     franchise_id: data.franchise_id,
     report_date: data.date || new Date().toISOString().split('T')[0],
@@ -248,18 +288,19 @@ async function saveReport(data) {
     wastage_items: data.wastage_items || [],
     wastage_total: data.wastage_total || 0,
     bill_total: data.bill_total || 0,
+    logistics: data.logistics || 0,
     // Calculated fields
     gst: (data.sales || 0) * 0.05,
     royalty: ((data.sales || 0) - (data.sales || 0) * 0.05) * (data.royalty_percent || 5) / 100,
     cogs_percent: data.sales > 0
-      ? (((data.bill_total || 0) - (data.closing_total || 0) - (data.wastage_total || 0)) / data.sales) * 100
+      ? ((opening + (data.bill_total || 0) - (data.closing_total || 0) - (data.wastage_total || 0)) / data.sales) * 100
       : 0,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   };
 
   // Calculate net pay
-  report.net_pay = report.sales - report.gst - report.royalty - report.bill_total;
+  report.net_pay = report.sales - report.gst - report.royalty - report.bill_total - report.logistics;
 
   await dynamoDB.send(new PutCommand({
     TableName: TABLE_NAME,
@@ -275,11 +316,20 @@ async function saveReport(data) {
 
 // Update daily report
 async function updateReport(data) {
+  // Fetch most recent closing before this date (to use as opening)
+  let opening = 0;
+  try {
+    const reportDate = data.date || new Date().toISOString().split('T')[0];
+    opening = await getMostRecentClosing(data.franchise_id, reportDate);
+  } catch (err) {
+    console.log('Could not fetch previous closing:', err);
+  }
+
   const updateExpressions = [];
   const expressionAttributeNames = {};
   const expressionAttributeValues = {};
 
-  const fields = ['sales', 'closing_items', 'closing_total', 'wastage_items', 'wastage_total', 'bill_total'];
+  const fields = ['sales', 'closing_items', 'closing_total', 'wastage_items', 'wastage_total', 'bill_total', 'logistics'];
 
   fields.forEach(field => {
     if (data[field] !== undefined) {
@@ -298,8 +348,9 @@ async function updateReport(data) {
 
   const gst = sales * 0.05;
   const royalty = (sales - gst) * royaltyPercent / 100;
-  const cogsPercent = sales > 0 ? ((billTotal - closingTotal - wastageTotal) / sales) * 100 : 0;
-  const netPay = sales - gst - royalty - billTotal;
+  const logistics = data.logistics !== undefined ? data.logistics : 0;
+  const cogsPercent = sales > 0 ? ((opening + billTotal - closingTotal - wastageTotal) / sales) * 100 : 0;
+  const netPay = sales - gst - royalty - billTotal - logistics;
 
   updateExpressions.push('#gst = :gst', '#royalty = :royalty', '#cogs_percent = :cogs_percent', '#net_pay = :net_pay', '#updated_at = :updated_at');
   expressionAttributeNames['#gst'] = 'gst';

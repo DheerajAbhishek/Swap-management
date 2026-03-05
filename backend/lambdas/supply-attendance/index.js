@@ -240,6 +240,74 @@ async function autoCheckoutStaleRecords(attendanceRecords) {
 exports.handler = async (event) => {
     console.log('Event:', JSON.stringify(event));
 
+    // ── EventBridge scheduled trigger (nightly absent detection) ──
+    if (event.source === 'aws.events' || event['detail-type'] === 'Scheduled Event') {
+        console.log('EventBridge trigger: running nightly mark-absent job');
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const targetDate = yesterday.toISOString().split('T')[0];
+
+        const dayOfWeek = new Date(targetDate + 'T00:00:00').getDay();
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+            console.log(`Skipped: ${targetDate} is a weekend`);
+            return { skipped: true, reason: 'weekend', date: targetDate };
+        }
+
+        const staffResult = await dynamodb.send(new ScanCommand({
+            TableName: STAFF_TABLE,
+            FilterExpression: '#role = :role AND #status = :status',
+            ExpressionAttributeNames: { '#role': 'role', '#status': 'status' },
+            ExpressionAttributeValues: { ':role': 'FRANCHISE_STAFF', ':status': 'ACTIVE' }
+        }));
+
+        const attendanceResult = await dynamodb.send(new ScanCommand({
+            TableName: ATTENDANCE_TABLE,
+            FilterExpression: '#date = :date',
+            ExpressionAttributeNames: { '#date': 'date' },
+            ExpressionAttributeValues: { ':date': targetDate }
+        }));
+
+        const attendanceMap = {};
+        (attendanceResult.Items || []).forEach(r => { attendanceMap[r.staff_id] = r; });
+
+        const allStaff = staffResult.Items || [];
+        const targetDateTime = new Date(targetDate).getTime();
+        const absentStaff = [];
+
+        for (const staff of allStaff) {
+            const joiningDate = staff.joining_date || staff.created_at?.split('T')[0];
+            if (joiningDate && new Date(joiningDate).getTime() > targetDateTime) continue;
+
+            if (!attendanceMap[staff.id]) {
+                await dynamodb.send(new PutCommand({
+                    TableName: ATTENDANCE_TABLE,
+                    Item: {
+                        id: generateId(),
+                        staff_id: staff.id,
+                        staff_name: staff.name,
+                        employee_id: staff.employee_id,
+                        franchise_id: staff.franchise_id || staff.parent_id,
+                        franchise_name: staff.parent_name,
+                        date: targetDate,
+                        checkin_time: null,
+                        checkout_time: null,
+                        shift_duration: 0,
+                        status: 'ABSENT',
+                        score_deduction: SCORE_DEDUCTIONS.MISSED_CHECKIN,
+                        deduction_reason: 'No check-in for the day (marked by system)',
+                        created_at: new Date().toISOString()
+                    }
+                }));
+                const scoreUpdate = await updateStaffScore(staff.id, SCORE_DEDUCTIONS.MISSED_CHECKIN, `Absent on ${targetDate}`);
+                absentStaff.push({ staff_id: staff.id, name: staff.name, scoreUpdate });
+            }
+        }
+
+        console.log(`Mark-absent done for ${targetDate}: ${absentStaff.length} absent out of ${allStaff.length}`);
+        return { date: targetDate, total_staff: allStaff.length, marked_absent: absentStaff.length, absent_staff: absentStaff };
+    }
+    // ── End EventBridge handler ──
+
     const httpMethod = event.requestContext?.http?.method || event.httpMethod;
     const path = event.rawPath || event.path;
 
@@ -705,6 +773,157 @@ exports.handler = async (event) => {
                     scheduledShiftHours: Math.round(scheduledShiftHours * 100) / 100,
                     isEarlyCheckout,
                     scoreUpdate
+                })
+            };
+        }
+
+        // POST /attendance/mark-absent - Daily job to mark absent staff (for n8n cron)
+        if (httpMethod === 'POST' && path.includes('/mark-absent')) {
+            // Only allow ADMIN role or automation
+            if (user.role !== 'ADMIN') {
+                return {
+                    statusCode: 403,
+                    headers,
+                    body: JSON.stringify({ error: 'Only admins can mark absent staff' })
+                };
+            }
+
+            // Get date parameter (default to yesterday)
+            const body = JSON.parse(event.body || '{}');
+            let targetDate = body.date;
+
+            if (!targetDate) {
+                // Default to yesterday in IST
+                const yesterday = new Date();
+                yesterday.setDate(yesterday.getDate() - 1);
+                targetDate = yesterday.toISOString().split('T')[0];
+            }
+
+            console.log(`Marking absent staff for date: ${targetDate}`);
+
+            // Check if target date is a weekend (Saturday or Sunday)
+            const targetDateObj = new Date(targetDate + 'T00:00:00');
+            const dayOfWeek = targetDateObj.getDay(); // 0 = Sunday, 6 = Saturday
+
+            if (dayOfWeek === 0 || dayOfWeek === 6) {
+                return {
+                    statusCode: 200,
+                    headers,
+                    body: JSON.stringify({
+                        message: `Skipped: ${targetDate} is a weekend (${dayOfWeek === 0 ? 'Sunday' : 'Saturday'})`,
+                        date: targetDate,
+                        is_weekend: true,
+                        day_of_week: dayOfWeek
+                    })
+                };
+            }
+
+            // Get all active staff members
+            const staffResult = await dynamodb.send(new ScanCommand({
+                TableName: STAFF_TABLE,
+                FilterExpression: '#role = :role AND #status = :status',
+                ExpressionAttributeNames: {
+                    '#role': 'role',
+                    '#status': 'status'
+                },
+                ExpressionAttributeValues: {
+                    ':role': 'FRANCHISE_STAFF',
+                    ':status': 'ACTIVE'
+                }
+            }));
+
+            const allStaff = staffResult.Items || [];
+            const targetDateTime = new Date(targetDate).getTime();
+
+            // Get all attendance records for target date
+            const attendanceResult = await dynamodb.send(new ScanCommand({
+                TableName: ATTENDANCE_TABLE,
+                FilterExpression: '#date = :date',
+                ExpressionAttributeNames: {
+                    '#date': 'date'
+                },
+                ExpressionAttributeValues: {
+                    ':date': targetDate
+                }
+            }));
+
+            const attendanceRecords = attendanceResult.Items || [];
+            const attendanceMap = {};
+            attendanceRecords.forEach(record => {
+                attendanceMap[record.staff_id] = record;
+            });
+
+            const absentStaff = [];
+            const skippedStaff = [];
+
+            // Check each staff member
+            for (const staff of allStaff) {
+                // Skip if staff joined after the target date
+                const joiningDate = staff.joining_date || staff.created_at?.split('T')[0];
+                if (joiningDate) {
+                    const joiningTime = new Date(joiningDate).getTime();
+                    if (joiningTime > targetDateTime) {
+                        skippedStaff.push({
+                            staff_id: staff.id,
+                            name: staff.name,
+                            reason: 'Not yet joined on this date'
+                        });
+                        continue;
+                    }
+                }
+
+                // Check if attendance exists
+                if (!attendanceMap[staff.id]) {
+                    // Staff was absent - create ABSENT record
+                    const absentRecord = {
+                        id: generateId(),
+                        staff_id: staff.id,
+                        staff_name: staff.name,
+                        employee_id: staff.employee_id,
+                        franchise_id: staff.franchise_id || staff.parent_id,
+                        franchise_name: staff.parent_name,
+                        date: targetDate,
+                        checkin_time: null,
+                        checkout_time: null,
+                        shift_duration: 0,
+                        status: 'ABSENT',
+                        score_deduction: SCORE_DEDUCTIONS.MISSED_CHECKIN,
+                        deduction_reason: 'No check-in for the day (marked by system)',
+                        created_at: new Date().toISOString()
+                    };
+
+                    await dynamodb.send(new PutCommand({
+                        TableName: ATTENDANCE_TABLE,
+                        Item: absentRecord
+                    }));
+
+                    // Deduct score
+                    const scoreUpdate = await updateStaffScore(
+                        staff.id,
+                        SCORE_DEDUCTIONS.MISSED_CHECKIN,
+                        `Absent on ${targetDate}`
+                    );
+
+                    absentStaff.push({
+                        staff_id: staff.id,
+                        name: staff.name,
+                        employee_id: staff.employee_id,
+                        scoreUpdate
+                    });
+                }
+            }
+
+            return {
+                statusCode: 200,
+                headers,
+                body: JSON.stringify({
+                    message: `Processed absent staff for ${targetDate}`,
+                    date: targetDate,
+                    total_staff: allStaff.length,
+                    marked_absent: absentStaff.length,
+                    skipped: skippedStaff.length,
+                    absent_staff: absentStaff,
+                    skipped_staff: skippedStaff
                 })
             };
         }

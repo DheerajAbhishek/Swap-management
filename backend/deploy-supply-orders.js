@@ -37,15 +37,15 @@ const archive = archiver('zip', { zlib: { level: 9 } });
 
 output.on('close', () => {
   console.log(`ZIP created: ${archive.pointer()} bytes`);
-  
+
   console.log('Deploying to AWS...');
   const result = execSync(`aws lambda update-function-code --function-name supply-orders --zip-file fileb://supply-orders.zip --region ap-south-1 --output json`, {
     cwd: lambdaPath
   });
-  
+
   const data = JSON.parse(result.toString());
   console.log(`✅ Deployed: ${data.FunctionName} - ${data.CodeSize} bytes`);
-  
+
   // Clean up
   fs.rmSync(deployDir, { recursive: true });
   fs.unlinkSync(zipPath);

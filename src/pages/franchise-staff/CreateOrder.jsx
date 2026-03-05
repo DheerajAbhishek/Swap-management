@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import OrderForm from '../../components/Supply/OrderForm';
 import { franchiseService } from '../../services/franchiseService';
+import { vendorService } from '../../services/vendorService';
 import { orderService } from '../../services/orderService';
 import { useAuth } from '../../context/AuthContext';
 
@@ -44,22 +45,72 @@ export default function StaffCreateOrder() {
         // Get franchise data to load vendors
         const franchiseData = await franchiseService.getFranchise(franchiseId);
         const franchiseVendors = [];
-        
+
+        // Fetch full vendor details to get allow_price_edit flag
         if (franchiseData.vendor_1_id && franchiseData.vendor_1_name) {
-          franchiseVendors.push({
-            id: franchiseData.vendor_1_id,
-            name: franchiseData.vendor_1_name,
-            type: 'SFI'
-          });
+          try {
+            const vendorDetails = await vendorService.getVendor(franchiseData.vendor_1_id);
+            franchiseVendors.push({
+              id: franchiseData.vendor_1_id,
+              name: franchiseData.vendor_1_name,
+              type: 'SFI',
+              allow_price_edit: vendorDetails.allow_price_edit || vendorDetails.vendor_type === 'PETTY_CASH' || false,
+              is_petty_cash: vendorDetails.vendor_type === 'PETTY_CASH'
+            });
+          } catch (err) {
+            console.warn('Could not fetch vendor 1 details:', err);
+            franchiseVendors.push({
+              id: franchiseData.vendor_1_id,
+              name: franchiseData.vendor_1_name,
+              type: 'SFI',
+              allow_price_edit: false,
+              is_petty_cash: false
+            });
+          }
         }
         if (franchiseData.vendor_2_id && franchiseData.vendor_2_name) {
-          franchiseVendors.push({
-            id: franchiseData.vendor_2_id,
-            name: franchiseData.vendor_2_name,
-            type: 'Raw Materials'
-          });
+          try {
+            const vendorDetails = await vendorService.getVendor(franchiseData.vendor_2_id);
+            franchiseVendors.push({
+              id: franchiseData.vendor_2_id,
+              name: franchiseData.vendor_2_name,
+              type: 'Raw Materials',
+              allow_price_edit: vendorDetails.allow_price_edit || vendorDetails.vendor_type === 'PETTY_CASH' || false,
+              is_petty_cash: vendorDetails.vendor_type === 'PETTY_CASH'
+            });
+          } catch (err) {
+            console.warn('Could not fetch vendor 2 details:', err);
+            franchiseVendors.push({
+              id: franchiseData.vendor_2_id,
+              name: franchiseData.vendor_2_name,
+              type: 'Raw Materials',
+              allow_price_edit: false,
+              is_petty_cash: false
+            });
+          }
         }
-        
+        if (franchiseData.vendor_3_id && franchiseData.vendor_3_name) {
+          try {
+            const vendorDetails = await vendorService.getVendor(franchiseData.vendor_3_id);
+            franchiseVendors.push({
+              id: franchiseData.vendor_3_id,
+              name: franchiseData.vendor_3_name,
+              type: 'General/Mixed',
+              allow_price_edit: vendorDetails.allow_price_edit || vendorDetails.vendor_type === 'PETTY_CASH' || false,
+              is_petty_cash: vendorDetails.vendor_type === 'PETTY_CASH'
+            });
+          } catch (err) {
+            console.warn('Could not fetch vendor 3 details:', err);
+            franchiseVendors.push({
+              id: franchiseData.vendor_3_id,
+              name: franchiseData.vendor_3_name,
+              type: 'General/Mixed',
+              allow_price_edit: false,
+              is_petty_cash: false
+            });
+          }
+        }
+
         setVendors(franchiseVendors);
 
         // Transform to format expected by OrderForm
@@ -73,7 +124,7 @@ export default function StaffCreateOrder() {
         }));
 
         setAllItems(formattedItems);
-        
+
         // Auto-select first vendor if available
         if (franchiseVendors.length > 0) {
           setSelectedVendor(franchiseVendors[0].id);
@@ -124,7 +175,8 @@ export default function StaffCreateOrder() {
           };
         }),
         notes: orderData.notes || '',
-        vendor_id: selectedVendor // Include selected vendor
+        vendor_id: selectedVendor, // Include selected vendor
+        delivery_date: orderData.deliveryDate // Include delivery date
       };
 
       const result = await orderService.createOrder(apiOrderData);
@@ -271,8 +323,8 @@ export default function StaffCreateOrder() {
                 }}
               >
                 {vendor.type === 'SFI' ? '🍳' : '🥬'} {vendor.name}
-                <div style={{ 
-                  fontSize: 12, 
+                <div style={{
+                  fontSize: 12,
                   marginTop: 4,
                   color: selectedVendor === vendor.id ? '#059669' : '#9ca3af'
                 }}>
@@ -296,6 +348,25 @@ export default function StaffCreateOrder() {
         </div>
       )}
 
+      {/* Info Banner */}
+      {selectedVendor && (
+        <div style={{
+          background: vendors.find(v => v.id === selectedVendor)?.allow_price_edit ? '#dcfce7' : '#fffbeb',
+          borderRadius: 12,
+          padding: 16,
+          marginBottom: 24,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12
+        }}>
+          <div style={{ fontSize: 14, color: vendors.find(v => v.id === selectedVendor)?.allow_price_edit ? '#166534' : '#92400e' }}>
+            {vendors.find(v => v.id === selectedVendor)?.allow_price_edit
+              ? '✏️ Price editing enabled for this vendor. You can modify item prices as needed.'
+              : 'Prices are fixed by Admin and cannot be modified. Select items and enter quantities.'}
+          </div>
+        </div>
+      )}
+
       <div style={{
         background: 'white',
         borderRadius: 16,
@@ -303,10 +374,13 @@ export default function StaffCreateOrder() {
         boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
       }}>
         <OrderForm
+          key={selectedVendor || 'no-vendor'}
           items={items}
           onSubmit={handleSubmit}
           loading={submitting}
           hideTotal={false} // Staff can see item totals for the order they're creating
+          allowPriceEdit={vendors.find(v => v.id === selectedVendor)?.allow_price_edit || false}
+          allowPastDeliveryDate={vendors.find(v => v.id === selectedVendor)?.is_petty_cash || false}
         />
       </div>
     </div>

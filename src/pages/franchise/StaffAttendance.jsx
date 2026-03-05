@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { attendanceService } from '../../services/attendanceService';
 import ToastNotification from '../../components/ToastNotification';
@@ -16,6 +17,7 @@ import {
  * Allows franchise owner to view staff attendance records
  */
 export default function FranchiseStaffAttendance() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [attendance, setAttendance] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -100,9 +102,40 @@ export default function FranchiseStaffAttendance() {
         onClose={() => setToast({ ...toast, show: false })}
       />
 
-      <h1 style={{ fontSize: 24, fontWeight: 700, color: '#1f2937', marginBottom: 24 }}>
-        Staff Attendance
-      </h1>
+      {/* Header with Navigation Button */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+        <h1 style={{ fontSize: 24, fontWeight: 700, color: '#1f2937', margin: 0 }}>
+          Staff Attendance Log
+        </h1>
+        <button
+          onClick={() => navigate('/franchise/staff-attendance-management')}
+          style={{
+            padding: '12px 24px',
+            background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 10,
+            fontWeight: 600,
+            fontSize: 14,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            boxShadow: '0 4px 6px rgba(139, 92, 246, 0.3)',
+            transition: 'all 0.2s'
+          }}
+          onMouseOver={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
+          onMouseOut={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <rect x="3" y="4" width="18" height="18" rx="2" />
+            <line x1="16" y1="2" x2="16" y2="6" />
+            <line x1="8" y1="2" x2="8" y2="6" />
+            <line x1="3" y1="10" x2="21" y2="10" />
+          </svg>
+          Attendance Management
+        </button>
+      </div>
 
       {/* Date Filter */}
       <div style={{

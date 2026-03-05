@@ -1,0 +1,11 @@
+{
+  "name": "rista-sales-lambda",
+  "version": "1.0.0",
+  "description": "Fetch sales data from Rista API",
+  "type": "module",
+  "main": "index.js",
+  "dependencies": {
+    "jsonwebtoken": "^9.0.2",
+    "axios": "^1.6.0"
+  }
+}

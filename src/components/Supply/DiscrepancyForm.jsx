@@ -158,6 +158,14 @@ export default function DiscrepancyForm({ orderItems, onSubmit, loading }) {
             <div style={{ fontWeight: 600, color: '#92400e' }}>Discrepancy Detected</div>
             <div style={{ fontSize: 13, color: '#a16207' }}>
               {discrepancies.filter(d => d.hasDiscrepancy).length} item(s) have quantity mismatch
+              {(() => {
+                const shortages = discrepancies.filter(d => d.hasDiscrepancy && d.receivedQty < d.orderedQty).length;
+                const overages = discrepancies.filter(d => d.hasDiscrepancy && d.receivedQty > d.orderedQty).length;
+                const parts = [];
+                if (shortages > 0) parts.push(`${shortages} shortage${shortages > 1 ? 's' : ''}`);
+                if (overages > 0) parts.push(`${overages} overage${overages > 1 ? 's' : ''}`);
+                return parts.length > 0 ? ` (${parts.join(', ')})` : '';
+              })()}
             </div>
           </div>
         </div>
